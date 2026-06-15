@@ -1,0 +1,2990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>3mensio PDF to Excel Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0f1e; color: #e2e8f0;
+      min-height: 100vh; padding: 0 0 60px;
+    }
+    header {
+      background: linear-gradient(135deg, #0d1b3e 0%, #0a1628 100%);
+      border-bottom: 1px solid #1e3a5f;
+      padding: 24px 40px 20px;
+      display: flex; align-items: center; gap: 18px;
+    }
+    .header-icon {
+      width: 46px; height: 46px;
+      background: linear-gradient(135deg, #00c9b1, #0077ff);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    header h1 {
+      font-size: 1.45rem; font-weight: 700;
+      background: linear-gradient(90deg, #ffffff, #7dd3fc);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    header p { color: #94a3b8; font-size: 0.82rem; margin-top: 3px; }
+
+    .container { max-width: 1300px; margin: 0 auto; padding: 32px 40px; }
+
+    /* Upload zone */
+    .upload-zone {
+      background: #0d1b3e; border: 2px dashed #1e3a5f;
+      border-radius: 14px; padding: 36px;
+      text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #0077ff; background: #0d1f4a;
+    }
+    .upload-zone input { display: none; }
+    .upload-zone svg { opacity: .5; margin-bottom: 12px; }
+    .upload-zone h3 { font-size: 1rem; color: #cbd5e1; }
+    .upload-zone p { font-size: 0.8rem; color: #64748b; margin-top: 6px; }
+
+    /* File list */
+    .file-list { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+    .file-item {
+      background: #0d1b3e; border: 1px solid #1e3a5f;
+      border-radius: 10px; padding: 12px 16px;
+      display: flex; align-items: center; gap: 12px;
+      font-size: 0.83rem;
+    }
+    .file-item .fname { flex: 1; color: #e2e8f0; word-break: break-all; }
+    .file-item .row-badge {
+      background: #1e3a5f; color: #7dd3fc;
+      padding: 2px 10px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+    }
+    .file-item .warn-badge {
+      background: #3d1a00; color: #fb923c;
+      padding: 2px 10px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; white-space: nowrap;
+    }
+    .file-item .ok-badge {
+      background: #0d2d1a; color: #4ade80;
+      padding: 2px 10px; border-radius: 20px;
+      font-size: 0.75rem; white-space: nowrap;
+    }
+    .file-item .err-badge {
+      background: #2d0d0d; color: #f87171;
+      padding: 2px 10px; border-radius: 20px;
+      font-size: 0.75rem; white-space: nowrap;
+    }
+    .file-item .remove-btn {
+      background: none; border: none; cursor: pointer;
+      color: #475569; font-size: 16px; padding: 0 4px;
+      line-height: 1;
+    }
+    .file-item .remove-btn:hover { color: #f87171; }
+
+    /* Counters */
+    .counters {
+      display: flex; gap: 16px; margin-top: 20px; flex-wrap: wrap;
+    }
+    .counter-card {
+      background: #0d1b3e; border: 1px solid #1e3a5f;
+      border-radius: 10px; padding: 12px 20px;
+      flex: 1; min-width: 120px; text-align: center;
+    }
+    .counter-card .val {
+      font-size: 1.6rem; font-weight: 700;
+      background: linear-gradient(90deg, #7dd3fc, #00c9b1);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .counter-card .lbl { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
+
+    /* Buttons */
+    .btn-row { display: flex; gap: 14px; margin-top: 24px; flex-wrap: wrap; position: relative; }
+    .btn {
+      padding: 11px 28px; border-radius: 9px; border: none;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+    .btn-primary { background: linear-gradient(135deg, #0077ff, #00c9b1); color: #fff; }
+    .btn-success { background: linear-gradient(135deg, #059669, #00c9b1); color: #fff; }
+    .btn-secondary {
+      background: transparent; color: #7dd3fc;
+      border: 1px solid #1e3a5f;
+    }
+
+    /* View tab (Snap-Shot based 3mensio Entries) */
+    .view-tab {
+      margin-left: 32px;
+      padding: 11px 28px; border-radius: 9px 9px 0 0;
+      font-size: 0.9rem; font-weight: 600; cursor: pointer;
+      background: transparent; color: #94a3b8;
+      border: 1px solid #1e3a5f; border-bottom: 2px solid transparent;
+      transition: color .15s, background .15s;
+    }
+    .view-tab:hover { color: #7dd3fc; }
+    .view-tab.active {
+      color: #fff;
+      background: linear-gradient(135deg, #0077ff22, #00c9b122);
+      border-bottom: 2px solid #00c9b1;
+    }
+    .btn-row.snapshot-active { justify-content: center; }
+    .btn-row.snapshot-active .view-tab { margin-left: 0; }
+
+    /* Snap-Shot prompt box */
+    .prompt-box {
+      max-width: 640px; margin: 0 auto;
+      background: #0c1f33; border: 1px solid #1e3a5f; border-radius: 12px;
+      overflow: hidden;
+    }
+    .prompt-box-header {
+      padding: 12px 18px; font-size: 1.01rem; font-weight: 700; color: #7dd3fc;
+      background: linear-gradient(135deg, #0077ff22, #00c9b122);
+      border-bottom: 1px solid #1e3a5f;
+    }
+    .prompt-box-body { padding: 16px 18px; font-size: 0.86rem; color: #cbd5e1; }
+    .prompt-box-body p { margin: 12px 0 0; line-height: 1.5; }
+    .prompt-box-body input {
+      width: 100%; box-sizing: border-box; padding: 9px 12px;
+      background: #081628; border: 1px solid #1e3a5f; border-radius: 8px;
+      color: #e2e8f0; font-size: 0.86rem;
+    }
+    .prompt-box-body input::placeholder { color: #64748b; }
+
+    /* Status bar */
+    .status-bar {
+      margin-top: 18px; padding: 12px 16px;
+      border-radius: 10px; font-size: 0.84rem;
+      display: none;
+    }
+    .status-bar.info { background: #0d1f4a; border: 1px solid #1e3a5f; color: #7dd3fc; display: block; }
+    .status-bar.success { background: #0d2d1a; border: 1px solid #14532d; color: #4ade80; display: block; }
+    .status-bar.error { background: #2d0d0d; border: 1px solid #7f1d1d; color: #f87171; display: block; }
+    .status-bar.warning { background: #3d1a00; border: 1px solid #92400e; color: #fb923c; display: block; }
+
+    /* Progress */
+    .progress-wrap { margin-top: 14px; display: none; }
+    .progress-wrap.show { display: block; }
+    .progress-bar-outer {
+      height: 6px; background: #1e3a5f; border-radius: 3px; overflow: hidden;
+    }
+    .progress-bar-inner {
+      height: 100%; background: linear-gradient(90deg, #0077ff, #00c9b1);
+      border-radius: 3px; width: 0; transition: width .3s;
+    }
+    .progress-label { font-size: 0.75rem; color: #64748b; margin-top: 6px; }
+
+    /* Preview table */
+    .preview-section { margin-top: 32px; display: none; }
+    .preview-section.show { display: block; }
+    .preview-section h2 {
+      font-size: 1rem; font-weight: 600; color: #7dd3fc;
+      margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+    }
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #1e3a5f; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    thead tr th {
+      background: #0d1b3e; color: #7dd3fc; font-weight: 600;
+      padding: 10px 14px; text-align: left; white-space: nowrap;
+      border-bottom: 1px solid #1e3a5f;
+    }
+    tbody tr { border-bottom: 1px solid #1a2a44; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #0d1f4a; }
+    tbody td { padding: 9px 14px; color: #cbd5e1; white-space: nowrap; }
+    tbody td.warn { color: #fb923c; font-size: 0.75rem; max-width: 220px; white-space: normal; }
+    .row-num { color: #7dd3fc; font-weight: 700; }
+    .na-val { color: #475569; font-style: italic; }
+    .blank-val { color: #1a1a1a; background: #fde047; }
+
+    /* Divider */
+    .divider { height: 1px; background: #1e3a5f; margin: 28px 0; }
+
+    /* Section label */
+    .section-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: .08em;
+      color: #475569; text-transform: uppercase; margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-icon">📊</div>
+  <div>
+    <h1>3mensio PDF to Excel Tracker</h1>
+    <p>Upload multiple 3mensio Structural Heart PDF reports and generate a complete tracker Excel file (columns A–CI).</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <div id="viewTop">
+  <!-- Upload zone -->
+  <div class="section-label">Step 1 — Select PDF reports</div>
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="pdfInput" accept=".pdf" multiple />
+    <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#7dd3fc" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round"
+        d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775
+           5.25 5.25 0 0 1 10.338-2.32 3 3 0 0 1 3.33 4.046A4.5 4.5 0 0 1 17.25 19.5H6.75z"/>
+    </svg>
+    <h3>Click to browse or drag &amp; drop PDF files</h3>
+    <p>Only .pdf files accepted — filename must start with a row number, e.g. <em>3.3mensio report.pdf</em></p>
+  </div>
+
+  <div class="file-list" id="fileList"></div>
+
+  <div class="counters" id="counters" style="display:none">
+    <div class="counter-card"><div class="val" id="cntTotal">0</div><div class="lbl">Total PDFs</div></div>
+    <div class="counter-card"><div class="val" id="cntValid">0</div><div class="lbl">Valid</div></div>
+    <div class="counter-card"><div class="val" id="cntWarning">0</div><div class="lbl">Warnings</div></div>
+    <div class="counter-card"><div class="val" id="cntMaxRow">—</div><div class="lbl">Highest Row</div></div>
+  </div>
+  </div><!-- /viewTop -->
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="processBtn" disabled>⚙ Process PDFs</button>
+    <button class="btn btn-success" id="downloadBtn" disabled>⬇ Download Excel</button>
+    <button class="btn btn-secondary" id="clearBtn">✕ Clear</button>
+    <button class="btn" id="resetBatchBtn" title="Reset Batch No. — next download will be batch 1"
+      style="padding:6px 6px; font-size:1.1rem; align-self:center; background:transparent; border:none; color:#7dd3fc; margin-left:-12px;">↺</button>
+    <button class="view-tab" id="snapshotTab">📷 Snap-Shot based 3mensio Entries</button>
+    <button class="view-tab" id="excelMergerTab" style="margin-left:0;">📑 Excel Merger</button>
+    <div id="downloadMdWrap" style="display:none; position:absolute; left:0; top:0; width:50%; text-align:center;">
+      <button class="btn btn-success" id="downloadMdBtn">⬇ Download Markdown File</button>
+    </div>
+    <div id="goBackWrap" style="display:none; position:absolute; left:calc(50% + 185px); top:0;">
+      <button class="btn btn-secondary" id="goBackBtn">↩ Go Back</button>
+    </div>
+  </div>
+
+  <!-- Snap-Shot view -->
+  <div id="snapshotPanel" style="display:none; margin-top:28px;">
+    <div style="display:flex; align-items:flex-start; gap:28px;">
+      <div style="flex:1;">
+        <div class="prompt-box">
+          <div class="prompt-box-header" style="text-align:center;">Instruction to use</div>
+          <div class="prompt-box-body">
+            <ol style="margin:0; padding-left:22px; line-height:1.6;">
+              <li>Download the Markdown (Claude.md) file in an empty folder.</li>
+              <li>Copy all the 3mensio reports to same location with numbering starting from "3.", "4." and so on ..</li>
+              <li>Provide folder path to the dialog box on the right side.</li>
+              <li>Copy the prompt along with location on clipboard.</li>
+              <li>Go to suitable tool which have computer folder access and paste the prompt there.</li>
+              <li>This will create the excel sheet and all snap shot based entries will be entered one by one sequentially.</li>
+              <li>Merge with text based entries as per record number later.</li>
+            </ol>
+            <p style="text-align:center; font-weight:700; color:#34d399;">Entire 3mensio Tracker Entries is Complete !!</p>
+          </div>
+        </div>
+      </div>
+      <div style="flex:1;">
+        <div class="prompt-box">
+          <div class="prompt-box-header" style="text-align:center;">Initial Prompt to process PDF one by one.</div>
+          <div class="prompt-box-body">
+            <input type="text" id="workLocationInput" placeholder="[Enter your working location]" />
+            <p>Make the excel file first with column headers and then process PDF one by one</p>
+            <p>Start from "3." once data is entered to excel sheet then process PDF's one by one ( First start with "3." then "4." &amp; till the last PDF in folder) sequentially.</p>
+          </div>
+        </div>
+        <div style="text-align:center; margin-top:16px;">
+          <button class="btn btn-primary" id="copyPromptBtn">📋 Copy to Clip Board</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Excel Merger view -->
+  <div id="mergerPanel" style="display:none; margin-top:28px;">
+    <div class="section-label">Step 1 — Select Excel files to merge</div>
+    <div class="upload-zone" id="mergerDropZone">
+      <input type="file" id="excelInput" accept=".xlsx" multiple />
+      <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="#7dd3fc" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775
+             5.25 5.25 0 0 1 10.338-2.32 3 3 0 0 1 3.33 4.046A4.5 4.5 0 0 1 17.25 19.5H6.75z"/>
+      </svg>
+      <h3>Click to browse or drag &amp; drop Excel files</h3>
+      <p>Only .xlsx files accepted — e.g. <em>1. 11 - TO - 15.xlsx</em></p>
+    </div>
+    <div class="file-list" id="mergerFileList"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="mergeBtn" disabled>🔀 Merge &amp; Download</button>
+    </div>
+    <div class="status-bar" id="mergerStatus"></div>
+  </div>
+
+  <div id="viewBottom">
+  <div class="status-bar" id="statusBar"></div>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar-outer"><div class="progress-bar-inner" id="progressBar"></div></div>
+    <div class="progress-label" id="progressLabel"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Debug raw text panel -->
+  <div id="debugPanel" style="display:none; margin-bottom:24px;">
+    <div style="font-size:0.72rem;font-weight:700;letter-spacing:.08em;color:#475569;text-transform:uppercase;margin-bottom:8px;">Debug — Raw Extracted Text (first 10,000 chars)</div>
+    <div id="debugTabs" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+    <div id="debugPanes"></div>
+  </div>
+
+  <!-- Preview table -->
+  <div class="preview-section" id="previewSection">
+    <h2>📋 Extracted Data Preview</h2>
+    <div class="table-wrap">
+      <table id="previewTable">
+        <thead>
+          <tr>
+            <th>Excel Row</th>
+            <th>PDF Name</th>
+            <th>Patient Name</th>
+            <th>Patient ID</th>
+            <th>Age</th>
+            <th>Gender</th>
+            <th>Physician</th>
+            <th>Hospital</th>
+            <th>City</th>
+            <th>Country</th>
+            <th>Creation Date</th>
+            <th>CT Scan Date</th>
+            <th>Type of Valve</th>
+            <th>Status</th>
+            <th>Warnings</th>
+          </tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+  </div>
+  </div><!-- /viewBottom -->
+
+</div>
+
+<script>
+// ─── PDF.js worker ───────────────────────────────────────────────────────────
+// Disable web worker — required when opening HTML via file:// protocol
+// (CDN workers are blocked by browser CORS policy on file:// pages)
+pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+
+// ─── Column index map (0-based) ───────────────────────────────────────────────
+const COL = {
+  CASE_ENTRY_DATE: 0,   // A
+  CASE_ENTERED_BY: 1,   // B
+  CASE_DONE_BY: 2,      // C
+  PATIENT_ID: 3,        // D
+  PATIENT_NAME: 4,      // E
+  AGE: 5,               // F
+  GENDER: 6,            // G
+  YEAR: 7,              // H
+  PATIENT_INITIAL: 8,   // I
+  PHYSICIAN: 9,         // J
+  HOSPITAL: 10,         // K
+  CITY: 11,             // L
+  COUNTRY: 12,          // M
+  REGION: 13,           // N
+  CONTINENT: 14,        // O
+  RECEIVED_DATE: 15,    // P
+  CREATION_DATE: 16,    // Q
+  CT_SCAN_DATE: 17,     // R
+  TYPE_OF_VALVE: 18,    // S
+  PHASE: 19,            // T
+  AA_AREA: 20,          // U  Aortic Annulus
+  AA_AREA_DERIVED: 21,  // V
+  AA_PERIMETER: 22,     // W
+  AA_PERIMETER_DERIVED: 23, // X
+  AA_MINIMUM: 24,       // Y
+  AA_MAXIMUM: 25,       // Z
+  AA_AVERAGE: 26,       // AA
+  AA_ECCENTRICITY: 27,  // AB
+  ASC_MINIMUM: 28,      // AC  Ascending Aorta
+  ASC_MAXIMUM: 29,      // AD
+  ASC_AVERAGE: 30,      // AE
+  LVOT_MINIMUM: 31,     // AF
+  LVOT_MAXIMUM: 32,     // AG
+  LVOT_AVERAGE: 33,     // AH
+  STJ_MINIMUM: 34,      // AI
+  STJ_MAXIMUM: 35,      // AJ
+  STJ_AVERAGE: 36,      // AK
+  ANNULUS_STJ_HEIGHT: 37, // AL
+  RCA_HEIGHT: 38,       // AM
+  LCA_HEIGHT: 39,       // AN
+  SOV_HEIGHT: 40,       // AO
+  SOV_RIGHT: 41,        // AP  Sinus of Valsalva
+  SOV_LEFT: 42,         // AQ
+  SOV_NON: 43,          // AR
+  AO_LV_ANGLE: 44,      // AS
+  ICD_4MM: 45,          // AT
+  ICD_6MM: 46,          // AU
+  ICD_8MM: 47,          // AV
+  CALC_NC: 48,          // AW  Aortic Valve Calcification
+  CALC_RC: 49,          // AX
+  CALC_LC: 50,          // AY
+  CALC_TOTAL: 51,       // AZ
+  CALC_GRADE: 52,       // BA
+  CLOCK_RCC: 53,        // BB
+  CLOCK_RCA: 54,        // BC
+  LCIA_MIN: 55,         // BD  Left Common Iliac
+  LCIA_MAX: 56,         // BE
+  LCIA_AVG: 57,         // BF
+  LCIA_CALC: 58,        // BG
+  LEIA_MIN: 59,         // BH  Left External Iliac
+  LEIA_MAX: 60,         // BI
+  LEIA_AVG: 61,         // BJ
+  LEIA_CALC: 62,        // BK
+  LFA_MIN: 63,          // BL  Left Femoral
+  LFA_MAX: 64,          // BM
+  LFA_AVG: 65,          // BN
+  LFA_CALC: 66,         // BO
+  RCIA_MIN: 67,         // BP  Right Common Iliac
+  RCIA_MAX: 68,         // BQ
+  RCIA_AVG: 69,         // BR
+  RCIA_CALC: 70,        // BS
+  REIA_MIN: 71,         // BT  Right External Iliac
+  REIA_MAX: 72,         // BU
+  REIA_AVG: 73,         // BV
+  REIA_CALC: 74,        // BW
+  RFA_MIN: 75,          // BX  Right Femoral
+  RFA_MAX: 76,          // BY
+  RFA_AVG: 77,          // BZ
+  RFA_CALC: 78,         // CA
+  ABD_AORTA_CALC: 79,   // CB
+  AORTIC_COMMENTS: 80,  // CC
+  FEMORAL_COMMENTS: 81, // CD
+  SUBCLAVIAN: 82,       // CE
+  STATUS: 83,           // CF
+  MAIL_NOTES: 84,       // CG
+  MERIL_REP: 85,        // CH
+  RECEIVED_FROM: 86     // CI
+};
+const NUM_COLS = 87;
+
+// ─── Header row definitions ──────────────────────────────────────────────────
+const HEADER_ROW1 = [
+  'Case entry date','Case entered by','Case done by','',
+  'Patient information','','','','',
+  'Hospital Information','','','',
+  'Region','Continent','Received Date','Creation Date','CT Scan Date',
+  'Type of Valve','Phase',
+  'Aortic Annulus','','','','','','','',
+  'Ascending Aorta','','',
+  'LVOT','','',
+  'STJ','','',
+  'Annulus to STJ Height','RCA Height','LCA Height','SOV Height',
+  'Sinus of Valsalva Diameters','','',
+  'AO-LV Angle',
+  'ICD Measurements(Bicuspid)','','',
+  'Aortic Valve Calcification','','','','',
+  'Clock angle (MID RCC)','Clock angle (MID RCA)',
+  'Left Common Iliac (CIA)','','','',
+  'Left External Iliac (EIA)','','','',
+  'Left Femoral (FA)','','','',
+  'Right Common Iliac (CIA)','','','',
+  'Right External Iliac (EIA)','','','',
+  'Right Femoral (FA)','','','',
+  'Abdominal Aorta Calcification','Aortic Comments','Femoral Comments',
+  'Subclavian/Carotid/Transapical Analysis','Status','Mail Notes',
+  'Meril Representative','Received from'
+];
+
+const HEADER_ROW2 = [
+  '','','',
+  'Patient ID','Patient Name','Age','Gender','Year','Patient Initial',
+  'Physician','Hospital','City','Country',
+  '','','','','','','',
+  'Area','Area Derived','Perimeter','Perimeter Derived','Minimum','Maximum','Average','Eccentricity',
+  'Minimum','Maximum','Average',
+  'Minimum','Maximum','Average',
+  'Minimum','Maximum','Average',
+  '','','','',
+  'Right (RCC)','Left (LCC)','Non (NCC)',
+  '',
+  'ICD @ 4mm','ICD @ 6mm','ICD @ 8mm',
+  'Calcium @NC','Calcium @RC','Calcium @LC','Total Calcium','Calcification Grade',
+  '','',
+  'Minimum','Maximum','Average','Calcification Grade',
+  'Minimum','Maximum','Average','Calcification Grade',
+  'Minimum','Maximum','Average','Calcification Grade',
+  'Minimum','Maximum','Average','Calcification Grade',
+  'Minimum','Maximum','Average','Calcification Grade',
+  'Minimum','Maximum','Average','Calcification Grade',
+  '','','','','','',''
+];
+
+// Merge ranges [r1,c1,r2,c2] (0-based)
+const MERGE_RANGES = [
+  [0,0,1,0],   // A1:A2
+  [0,1,1,1],   // B1:B2
+  [0,2,1,2],   // C1:C2
+  [0,4,0,8],   // E1:I1  Patient information
+  [0,9,0,12],  // J1:M1  Hospital Information
+  [0,13,1,13], // N1:N2
+  [0,14,1,14], // O1:O2
+  [0,15,1,15], // P1:P2
+  [0,16,1,16], // Q1:Q2
+  [0,17,1,17], // R1:R2
+  [0,18,1,18], // S1:S2
+  [0,19,1,19], // T1:T2
+  [0,20,0,27], // U1:AB1 Aortic Annulus
+  [0,28,0,30], // AC1:AE1 Ascending Aorta
+  [0,31,0,33], // AF1:AH1 LVOT
+  [0,34,0,36], // AI1:AK1 STJ
+  [0,37,1,37], // AL1:AL2
+  [0,38,1,38], // AM1:AM2
+  [0,39,1,39], // AN1:AN2
+  [0,40,1,40], // AO1:AO2
+  [0,41,0,43], // AP1:AR1 Sinus of Valsalva
+  [0,44,1,44], // AS1:AS2
+  [0,45,0,47], // AT1:AV1 ICD
+  [0,48,0,52], // AW1:BA1 Aortic Valve Calcification
+  [0,53,1,53], // BB1:BB2
+  [0,54,1,54], // BC1:BC2
+  [0,55,0,58], // BD1:BG1
+  [0,59,0,62], // BH1:BK1
+  [0,63,0,66], // BL1:BO1
+  [0,67,0,70], // BP1:BS1
+  [0,71,0,74], // BT1:BW1
+  [0,75,0,78], // BX1:CA1
+  [0,79,1,79], // CB1:CB2
+  [0,80,1,80], // CC1:CC2
+  [0,81,1,81], // CD1:CD2
+  [0,82,1,82], // CE1:CE2
+  [0,83,1,83], // CF1:CF2
+  [0,84,1,84], // CG1:CG2
+  [0,85,1,85], // CH1:CH2
+  [0,86,1,86], // CI1:CI2
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let selectedFiles = []; // {file, rowNum, valid, warning}
+let processedRows = {}; // rowNum -> 87-value array
+let workbookBlob = null;
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const dropZone    = document.getElementById('dropZone');
+const pdfInput    = document.getElementById('pdfInput');
+const fileListEl  = document.getElementById('fileList');
+const processBtn  = document.getElementById('processBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const clearBtn    = document.getElementById('clearBtn');
+const statusBar   = document.getElementById('statusBar');
+const progressWrap = document.getElementById('progressWrap');
+const progressBar = document.getElementById('progressBar');
+const progressLabel = document.getElementById('progressLabel');
+const previewSection = document.getElementById('previewSection');
+const previewBody = document.getElementById('previewBody');
+const countersEl  = document.getElementById('counters');
+const cntTotal    = document.getElementById('cntTotal');
+const cntValid    = document.getElementById('cntValid');
+const cntWarning  = document.getElementById('cntWarning');
+const cntMaxRow   = document.getElementById('cntMaxRow');
+
+// ─── Upload events ────────────────────────────────────────────────────────────
+dropZone.addEventListener('click', () => pdfInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
+});
+pdfInput.addEventListener('change', () => { addFiles(pdfInput.files); pdfInput.value = ''; });
+clearBtn.addEventListener('click', clearAll);
+processBtn.addEventListener('click', processAll);
+downloadBtn.addEventListener('click', doDownload);
+
+// ─── Snap-Shot tab (blank view) ───────────────────────────────────────────────
+const snapshotTab   = document.getElementById('snapshotTab');
+const snapshotPanel = document.getElementById('snapshotPanel');
+const viewTop       = document.getElementById('viewTop');
+const viewBottom    = document.getElementById('viewBottom');
+
+function setSnapshotView(active) {
+  snapshotTab.classList.toggle('active', active);
+  snapshotTab.parentElement.classList.toggle('snapshot-active', active);
+  document.getElementById('downloadMdWrap').style.display = active ? '' : 'none';
+  document.getElementById('goBackWrap').style.display = active ? '' : 'none';
+  snapshotPanel.style.display = active ? '' : 'none';
+  viewTop.style.display    = active ? 'none' : '';
+  viewBottom.style.display = active ? 'none' : '';
+  processBtn.style.display  = active ? 'none' : '';
+  downloadBtn.style.display = active ? 'none' : '';
+  clearBtn.style.display    = active ? 'none' : '';
+  document.getElementById('resetBatchBtn').style.display = active ? 'none' : '';
+  document.getElementById('excelMergerTab').style.display = active ? 'none' : '';
+}
+
+// Tab only opens the Snap-Shot view; returning is done via the Go Back button
+snapshotTab.addEventListener('click', () => setSnapshotView(true));
+
+// Reset batch counter — next download starts again from batch 1
+document.getElementById('resetBatchBtn').addEventListener('click', () => {
+  localStorage.removeItem('batchCounter');
+  localStorage.removeItem('batchLastRange');
+  showStatus('✓ Batch counter reset — the next Excel download will be batch 1.', 'success');
+});
+
+// Snap-Shot spec markdown (embedded; source: "3. 3mensio Tracker - Manual Entries\CLAUDE.md")
+const SNAPSHOT_MD = `# 3mensio Focused PDF to Excel Tracker — Build Spec & Session Log
+
+## Project Summary
+
+Build a batch-processing tool that accepts multiple 3mensio Structural Heart PDF reports in one run,
+extracts the 16 confirmed parameters, previews the results for review, and downloads one Excel
+workbook.
+
+The normal workflow may contain approximately 20 reports, but the tool must not impose a 20-file
+limit. It should process any reasonable number of PDFs selected together.
+
+Planned single-file browser tool:
+
+\`\`\`text
+3mensio_pdf_to_excel.html
+\`\`\`
+
+The filename number determines the destination Excel row. Image-based values must be read from the
+confirmed snapshot headers using image inspection/OCR. The user must be able to review and correct any
+uncertain value before downloading the workbook.
+
+The focused A–P output and batch rules in this document are authoritative. Older 87-column notes below
+are historical extraction references only and must not control the focused workbook layout.
+
+---
+
+## Single File Rule
+
+Only one output file: \`3mensio_pdf_to_excel.html\`
+
+All CSS inside \`<style>\`. All JavaScript inside \`<\script>\`. CDN libraries only.
+
+\`\`\`html
+<\script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
+<\script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"><\/script>
+<\script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
+\`\`\`
+
+**Important:** Set \`pdfjsLib.GlobalWorkerOptions.workerSrc = ''\` to disable the web worker.
+This is required because the file runs via \`file://\` protocol and CDN workers are blocked by CORS.
+
+---
+
+## Filename → Excel Row Rule
+
+\`\`\`javascript
+function getTargetRowNumber(fileName) {
+  const match = fileName.match(/^(\\d+)\\./);
+  return match ? Number(match[1]) : null;
+}
+\`\`\`
+
+- \`3.report.pdf\` → row 3
+- \`10.report.pdf\` → row 10
+- \`27.report.pdf\` → row 27
+- Rows 1–2 are headers. Data starts at row 3.
+- Blank rows are preserved between non-contiguous row numbers.
+- Duplicate row numbers block download until resolved.
+- Input files may be selected in any order; rows must be placed by filename number, not selection order.
+- A filename without a leading integer and period must be flagged and excluded until corrected.
+
+---
+
+## Excel Output
+
+- Sheet name: \`3mensio Parameters\`
+- Columns: A through P, exactly 16 columns
+- Downloaded as: \`3mensio_selected_parameters.xlsx\`
+- Row placement: leading filename number
+- Rows 1–2: headers
+- Missing/uncertain extracted values: \`Pending\`, except fields with a confirmed \`NA\` rule
+- Comment columns N and O: wrapped text with each source comment on a separate line
+
+### Focused Column Map
+
+| Column | Header |
+|---|---|
+| A | Full Patient Name |
+| B | Annulus to STJ Height |
+| C | AO-LV Angle |
+| D | ICD @ 4mm |
+| E | ICD @ 6mm |
+| F | ICD @ 8mm |
+| G | Calcium @NC |
+| H | Calcium @RC |
+| I | Calcium @LC |
+| J | Total Calcium |
+| K | Calcification Grade |
+| L | Clock angle (MID RCC) |
+| M | Clock angle (MID RCA) |
+| N | Aortic Comments |
+| O | Femoral Comments |
+| P | Subclavian/Carotid/Transapical Analysis |
+
+---
+
+## Batch Processing Workflow
+
+1. The user selects all reports for the batch together, for example 20 PDFs.
+2. Validate each filename and derive its target row from the leading number.
+3. Reject duplicate target row numbers and show the conflicting filenames.
+4. Read normal PDF text for patient name and comment-based rules.
+5. Render and inspect the confirmed snapshot pages for image-based measurements.
+6. Apply OCR only inside the relevant snapshot regions and validate the result against the expected
+   label, unit, and number format.
+7. Populate one preview row per PDF at its target Excel row.
+8. Highlight every \`Pending\`, low-confidence OCR value, validation failure, or missing section.
+9. Allow the user to edit any preview cell before export.
+10. Enable download only after duplicate-row errors are resolved. \`Pending\` values may remain only when
+    the user deliberately accepts them.
+11. Generate one Excel workbook containing all processed reports.
+
+### Completion-First Processing Policy
+
+- Inspect every required snapshot and enter every value that is present in the PDF.
+- When a value is unclear on the first inspection, repeat the inspection using a higher render scale,
+  a tighter crop, contrast/color isolation, and OCR as appropriate.
+- Cross-check OCR output against the visible annotation, expected label, unit, numeric format, and any
+  confirmed arithmetic rule before entering it.
+- Do not move past a report merely because a required image value needs additional inspection.
+- Do not guess, infer, calculate, or substitute a nearby value unless a calculation rule is explicitly
+  confirmed in this document.
+- Use \`Pending\` only when the required snapshot or measurement is genuinely absent, or when it remains
+  unreadable after repeated documented inspection attempts. \`Pending\` is not a time-saving default.
+- Complete all available yellow-highlighted measurement cells before finalizing the workbook.
+
+### Batch Progress and Error Handling
+
+- Show progress as \`Processing X of Y\` and display the current filename.
+- A failure in one PDF must not cancel the rest of the batch.
+- Record a clear per-file error when a PDF is unreadable, password-protected, corrupt, or missing its
+  required pages.
+- Keep successfully extracted rows when another report fails.
+- Provide a final summary: selected, completed, needs review, failed, and ready for export.
+- Do not silently guess values from nearby labels or unrelated snapshots.
+
+### Automatic Validation
+
+- Patient name must not be empty.
+- Numeric measurement fields must contain only the expected numeric format.
+- Annulus to STJ Height and ICD values use one decimal place.
+- AO-LV and clock angles are whole numbers without the degree symbol.
+- Calcium values are whole numbers without \`mm³\`.
+- \`Calcium @NC + Calcium @RC + Calcium @LC\` must equal \`Total Calcium\`.
+- Calcification Grade must be calculated from Total Calcium using the confirmed thresholds.
+- Tricuspid cases must have \`NA\` in all three ICD columns.
+- Bicuspid Type 0/1a/1b/1c cases must use actual ICD measurements rather than \`NA\`.
+- Column P must follow the confirmed Subclavian/Carotid decision tree.
+
+---
+
+## Reusable Batch Initiation Prompt
+
+Use the following prompt when a new group of reports has been placed in the working folder:
+
+\`\`\`text
+Process all 3mensio PDF reports currently available in this folder according to the complete rules in
+CLAUDE.md.
+
+There are approximately 10 PDFs in this batch. Read every report, use the leading number in each PDF
+filename as its Excel row number, and prepare one Excel workbook with the confirmed 16 columns A to P.
+
+Requirements:
+- Process the files in batch, regardless of their displayed order.
+- Extract text-based fields and inspect the specified PDF snapshots for image-based measurements.
+- Apply all confirmed Tricuspid/Bicuspid ICD rules, calcium validation and grading rules, clock-angle
+  rules, comment boundaries, and access-analysis classifications.
+- Do not guess any unreadable value. Mark it as Pending and clearly identify the PDF and field needing
+  review.
+- Preserve blank Excel rows when filename numbers are skipped.
+- Detect duplicate filename row numbers and report them before export.
+- Allow uncertain values to be reviewed or corrected before finalizing.
+- Create one output file named 3mensio_selected_parameters.xlsx with sheet name 3mensio Parameters.
+- Confirm how many PDFs succeeded, need review, or failed, and list every unresolved field.
+
+Start processing now and continue until the Excel workbook has been created and validated.
+\`\`\`
+
+---
+
+## Confirmed Column Extractions (session-by-session)
+
+### A — Case entry date
+Auto-populated with **today's date** in \`DD-MM-YYYY\` format.
+\`\`\`javascript
+const d = new Date();
+row[COL.CASE_ENTRY_DATE] = \`\${String(d.getDate()).padStart(2,'0')}-\${String(d.getMonth()+1).padStart(2,'0')}-\${d.getFullYear()}\`;
+\`\`\`
+
+### B — Case entered by
+Fixed value: \`Hiren\`
+
+### C — Case done by
+Extracted from PDF \`Created By:\` field.
+Uses dedicated \`extractCreatedBy(text)\` function that:
+1. Finds \`Created By:\` (case-insensitive)
+2. Takes the rest of that line
+3. Strips trailing Title Case label (e.g. \`Hospital:\`) using case-sensitive regex
+   (ALL-CAPS words like \`MERIL\`, \`TAVI\`, \`CORELAB\` are NOT treated as labels)
+
+\`\`\`javascript
+function extractCreatedBy(text) {
+  const m = text.match(/Created\\s*By\\s*:\\s*([^\\n\\r]+)/i);
+  if (!m) return '';
+  let val = m[1].trim();
+  val = val.replace(/\\s+[A-Z][a-z][A-Za-z]*(?:\\s+[A-Z][a-z][A-Za-z]*)*\\s*:.*$/, '');
+  return val.trim();
+}
+\`\`\`
+
+Example: \`MERIL TAVI CORELAB (AG)\`
+
+### D — Patient ID
+Extracted from the page footer line format: \`<ID> <PATIENT NAME> Page X of Y\`
+- The ID is always the **first token** on that line — can be numeric (\`39037\`), alphanumeric (\`S0473VA\`), or any format (may include letters, digits, dots, dashes, commas).
+- Footer line is found via \`Page 1 of X\` pattern.
+
+\`\`\`javascript
+function extractPatientID(text) {
+  // Footer line: "<ID> <PATIENT NAME> Page X of Y" — ID is always first token
+  const footerLine = text.match(/([^\\n\\r]*Page\\s+1\\s+of\\s+\\d[^\\n\\r]*)/i);
+  if (footerLine) {
+    const firstToken = footerLine[1].trim().match(/^(\\S+)/);
+    if (firstToken) return firstToken[1].trim();
+  }
+  // Fallback: "Patient ID:" label
+  const labeled = text.match(/Patient\\s*ID\\s*:\\s*(\\S[^\\n\\r]*)/i);
+  return labeled ? labeled[1].trim() : '';
+}
+\`\`\`
+
+### E — Patient Name
+Extracted from \`Name:\` label (Patient Information section).
+Stops before \`Height:\` on the same line using \`extractAfterLabelStrict\`.
+
+### F — Age
+Extracted from \`Year Of Birth (Age): 1940 (86)\` → returns \`86\` (number in brackets).
+\`\`\`javascript
+const ageMatch = text.match(/Year\\s*Of\\s*Birth[^:]*:\\s*\\d+\\s*\\((\\d+)\\)/i);
+if (ageMatch) row[COL.AGE] = ageMatch[1];
+\`\`\`
+
+### G — Gender
+Extracted from \`Gender:\` label. Mapped to single letter:
+- \`Female\` → \`F\` (checked first to avoid matching "male" inside "female")
+- \`Male\` → \`M\`
+
+\`\`\`javascript
+if (/female/i.test(genderRaw)) row[COL.GENDER] = 'F';
+else if (/male/i.test(genderRaw)) row[COL.GENDER] = 'M';
+\`\`\`
+
+### H — Year
+Extracted from \`Year Of Birth (Age): 1939 (86)\` → returns \`1939\` (the 4-digit year).
+\`\`\`javascript
+const yearMatch = text.match(/Year\\s*Of\\s*Birth[^:]*:\\s*(\\d{4})/i);
+if (yearMatch) row[COL.YEAR] = yearMatch[1];
+\`\`\`
+
+### I — Patient Initial
+Derived from Patient Name (column E): first letter of each word joined uppercase.
+\`CHERNOUH MOHAMED\` → \`CM\`
+
+\`\`\`javascript
+const pName = row[COL.PATIENT_NAME];
+if (pName) {
+  row[COL.PATIENT_INITIAL] = pName.trim().split(/\\s+/).map(w => w[0]).join('').toUpperCase();
+}
+\`\`\`
+
+### J — Physician
+Extracted from \`Physician:\` label using \`extractAfterLabelStrict\`.
+
+### K — Hospital
+Extracted from \`Hospital:\` label using \`extractAfterLabelStrict\`, then \`toTitleCase()\`.
+Example: \`CHU BLIDA\` → \`Chu Blida\`
+
+### L — City
+Extracted from \`City:\` label using \`extractAfterLabelStrict\`, then \`toTitleCase()\`.
+Example: \`BLIDA\` → \`Blida\`
+
+### M — Country
+Extracted from \`Country:\` label using \`extractAfterLabelStrict\`, then \`toTitleCase()\`.
+Example: \`ALGERIA\` → \`Algeria\`
+
+### N — Region
+Fixed value: \`Pending\`
+
+### O — Continent
+Fixed value: \`Pending\`
+
+### P — Received Date
+Extracted via direct regex, strips trailing Title Case label (two-column layout).
+\`\`\`javascript
+const rdMatch = text.match(/Received\\s*Date\\s*:\\s*([^\\n\\r]+)/i);
+if (rdMatch) {
+  let rdVal = rdMatch[1].trim();
+  rdVal = rdVal.replace(/\\s+[A-Z][a-z][A-Za-z]*(?:\\s+[A-Z][a-z][A-Za-z]*)*\\s*:.*$/, '');
+  row[COL.RECEIVED_DATE] = rdVal.trim();
+}
+\`\`\`
+
+### Q — Creation Date
+Extracted via direct regex, strips trailing Title Case label (two-column layout).
+\`\`\`javascript
+const cdRaw = text.match(/Creation\\s*Date\\s*:\\s*([^\\n\\r]+)/i);
+if (cdRaw) {
+  let cdVal = cdRaw[1].trim();
+  cdVal = cdVal.replace(/\\s+[A-Z][a-z][A-Za-z]*(?:\\s+[A-Z][a-z][A-Za-z]*)*\\s*:.*$/, '');
+  row[COL.CREATION_DATE] = cdVal.trim();
+}
+\`\`\`
+
+### R — CT Scan Date
+Permissive regex to handle mixed-case label variations (\`CT scan Date\`, \`CT Scan date\`, etc.).
+The separator before the date is optional — some reports write \`CT Scan date 30-04-2026\` with no
+\`:\` or \`-\`. A trailing period (from the Comments sentence) is stripped.
+\`\`\`javascript
+const ctMatch = text.match(/CT.{0,15}date\\s*[-:]?\\s*([^\\n\\r]+)/i);
+if (ctMatch) row[COL.CT_SCAN_DATE] = ctMatch[1].trim().replace(/\\.$/, '');
+\`\`\`
+
+### S — Type of Valve
+First line of Comments in the Aortic Valve section. Strips leading "Seems to be " qualifier.
+\`\`\`javascript
+function extractAorticValveFirstCommentLine(text) {
+  const avIdx = text.search(/aortic\\s+valve/i);
+  if (avIdx === -1) return '';
+  const avText = text.substring(avIdx, avIdx + 3000);
+  const commIdx = avText.search(/comments\\s*:/i);
+  if (commIdx === -1) return '';
+  const afterComments = avText.substring(commIdx).replace(/comments\\s*:\\s*/i, '');
+  const lines = afterComments.split(/[\\n\\r]+/);
+  for (const ln of lines) {
+    let t = ln.trim();
+    if (t && t.length > 1) {
+      t = t.replace(/^seems\\s+to\\s+be\\s+/i, '');
+      return t;
+    }
+  }
+  return '';
+}
+\`\`\`
+Example: \`Tricuspid Aortic Valve.\` or \`Bicuspid Type 1b Aortic Valve.\`
+
+### T — Phase
+Primary: extracted from filename — first segment after \`report_\` (e.g. \`_30%_\` → \`30%\`, \`_ECG_\` → \`ECG\`).
+Fallback: regex match \`(\\d+)% Phase\` in PDF Comments text.
+
+\`\`\`javascript
+const phaseFromFile = fileName.match(/report_([^_]+)_/i);
+if (phaseFromFile) {
+  row[COL.PHASE] = phaseFromFile[1].trim();
+} else {
+  const phaseMatch = text.match(/(\\d+(?:\\.\\d+)?)\\s*%\\s*Phase/i);
+  if (phaseMatch) row[COL.PHASE] = phaseMatch[1] + '%';
+}
+\`\`\`
+Examples: \`30%\`, \`45%\`, \`ECG\`
+
+### U — AA Area
+Extracted from \`Area: 540.6 mm²\` in Aortic Annulus section.
+\`Area Derived Ø:\` won't match because it has extra words before the colon.
+\`\`\`javascript
+const aaAreaMatch = text.match(/\\bArea\\s*:\\s*([\\d.]+)/);
+if (aaAreaMatch) row[COL.AA_AREA] = aaAreaMatch[1];
+\`\`\`
+
+### V — AA Area Derived Ø
+Extracted from \`Area Derived Ø: 26.2 mm\`.
+\`\`\`javascript
+const aaAreaDerivedMatch = text.match(/Area\\s+Derived\\s*[^\\n:]*:\\s*([\\d.]+)/i);
+if (aaAreaDerivedMatch) row[COL.AA_AREA_DERIVED] = aaAreaDerivedMatch[1];
+\`\`\`
+
+### W — AA Perimeter
+Extracted from \`Perimeter: 85.0 mm\` (not Perimeter Derived).
+\`\`\`javascript
+const aaPerimMatch = text.match(/\\bPerimeter\\s*:\\s*([\\d.]+)/i);
+if (aaPerimMatch) row[COL.AA_PERIMETER] = aaPerimMatch[1];
+\`\`\`
+
+### X — AA Perimeter Derived Ø
+Extracted from \`Perimeter Derived Ø: 27.1 mm\`.
+\`\`\`javascript
+const aaPerimDerivedMatch = text.match(/Perimeter\\s+Derived\\s*[^\\n:]*:\\s*([\\d.]+)/i);
+if (aaPerimDerivedMatch) row[COL.AA_PERIMETER_DERIVED] = aaPerimDerivedMatch[1];
+\`\`\`
+
+### Y — AA Minimum
+Extracted from Measurements section: \`Aortic Annulus Min Ø: 21.6 mm\`.
+\`\`\`javascript
+const aaMinMatch = text.match(/Aortic\\s+Annulus\\s+Min\\s*[^\\n:]*:\\s*([\\d.]+)/i);
+if (aaMinMatch) row[COL.AA_MINIMUM] = aaMinMatch[1];
+\`\`\`
+
+### Z — AA Maximum
+Extracted from Measurements section: \`Max Ø: 32.2 mm\` following Aortic Annulus block.
+\`\`\`javascript
+const aaMaxMatch = text.match(/Aortic\\s+Annulus[\\s\\S]{0,200}?Max\\s*[^\\n:]*:\\s*([\\d.]+)/i);
+if (aaMaxMatch) row[COL.AA_MAXIMUM] = aaMaxMatch[1];
+\`\`\`
+
+### AA — AA Average
+Extracted from Measurements section: \`Average Ø: 26.9 mm\` following Aortic Annulus block.
+\`\`\`javascript
+const aaAvgMatch = text.match(/Aortic\\s+Annulus[\\s\\S]{0,300}?Average\\s*[^\\n:]*:\\s*([\\d.]+)/i);
+if (aaAvgMatch) row[COL.AA_AVERAGE] = aaAvgMatch[1];
+\`\`\`
+
+### AB — AA Eccentricity
+Extracted from \`Eccentricity: 0.33\`.
+\`\`\`javascript
+const aaEccMatch = text.match(/Eccentricity\\s*:\\s*([\\d.]+)/i);
+if (aaEccMatch) row[COL.AA_ECCENTRICITY] = aaEccMatch[1];
+\`\`\`
+
+### AC–AE — Ascending Aorta (Minimum, Maximum, Average)
+Extracted from the Measurements table block "Ascending Aorta Ø ... Min: 29.1 mm Max: 31.0 mm Average: 30.0 mm".
+The block is bounded between the "Ascending Aorta" label and the next "Aortic Annulus" label to avoid
+matching the unrelated "Asc. Aorta Ø: 30.0 mm" summary value shown earlier on the page.
+
+\`\`\`javascript
+const ascIdx = text.search(/Ascending\\s+Aorta/i);
+if (ascIdx !== -1) {
+  const ascEnd = text.substring(ascIdx).search(/Aortic\\s+Annulus/i);
+  const ascBlock = ascEnd === -1 ? text.substring(ascIdx, ascIdx + 200) : text.substring(ascIdx, ascIdx + ascEnd);
+
+  const ascMinMatch = ascBlock.match(/Min\\s*:\\s*([\\d.]+)/i);
+  if (ascMinMatch) row[COL.ASC_MINIMUM] = ascMinMatch[1];
+
+  const ascMaxMatch = ascBlock.match(/Max\\s*:\\s*([\\d.]+)/i);
+  if (ascMaxMatch) row[COL.ASC_MAXIMUM] = ascMaxMatch[1];
+
+  const ascAvgMatch = ascBlock.match(/Average\\s*:\\s*([\\d.]+)/i);
+  if (ascAvgMatch) row[COL.ASC_AVERAGE] = ascAvgMatch[1];
+}
+\`\`\`
+
+### AF–AH — LVOT (Minimum, Maximum, Average)
+The Measurements table interleaves two columns per line, e.g.
+\`Sinotubular Junction Ø Min: 25.5 mm ... LVOT Ø Min: 22.3 mm\` then \`Max: 28.0 mm Max: 30.0 mm\` etc.
+LVOT is the **2nd "LVOT Ø"** column (right side, under Sinotubular Junction). The block is bounded
+between "LVOT Ø ... Min:" and "Aorto-Mitral".
+
+\`\`\`javascript
+const lvotIdx = text.search(/LVOT\\s*Ø[\\s\\S]{0,50}?Min\\s*:/i);
+if (lvotIdx !== -1) {
+  const lvotEnd = text.substring(lvotIdx).search(/Aorto-Mitral/i);
+  const lvotBlock = lvotEnd === -1 ? text.substring(lvotIdx, lvotIdx + 200) : text.substring(lvotIdx, lvotIdx + lvotEnd);
+
+  const lvotMinMatch = lvotBlock.match(/Min\\s*:\\s*([\\d.]+)/i);
+  if (lvotMinMatch) row[COL.LVOT_MINIMUM] = lvotMinMatch[1];
+
+  const lvotMaxMatch = lvotBlock.match(/Max\\s*:\\s*([\\d.]+)/i);
+  if (lvotMaxMatch) row[COL.LVOT_MAXIMUM] = lvotMaxMatch[1];
+
+  const lvotAvgMatch = lvotBlock.match(/Average\\s*:\\s*([\\d.]+)/i);
+  if (lvotAvgMatch) row[COL.LVOT_AVERAGE] = lvotAvgMatch[1];
+}
+\`\`\`
+
+### AI–AK — STJ (Minimum, Maximum, Average)
+Same interleaved-line problem as above. From the start of "Measurements:", collect all \`Min:\`/\`Max:\`/\`Average:\`
+matches across the whole table — the **2nd occurrence of each** is Sinotubular Junction (STJ); the 1st is
+Ascending Aorta and the 3rd is LVOT.
+
+\`\`\`javascript
+const measIdx = text.search(/Measurements\\s*:/i);
+const measText = measIdx !== -1 ? text.substring(measIdx) : text;
+const stjMinAll = [...measText.matchAll(/Min\\s*:\\s*([\\d.]+)/gi)];
+const stjMaxAll = [...measText.matchAll(/Max\\s*:\\s*([\\d.]+)/gi)];
+const stjAvgAll = [...measText.matchAll(/Average\\s*:\\s*([\\d.]+)/gi)];
+if (stjMinAll[1]) row[COL.STJ_MINIMUM] = stjMinAll[1][1];
+if (stjMaxAll[1]) row[COL.STJ_MAXIMUM] = stjMaxAll[1][1];
+if (stjAvgAll[1]) row[COL.STJ_AVERAGE] = stjAvgAll[1][1];
+\`\`\`
+
+### AL — Annulus to STJ Height
+This value must be captured visually from the PDF snapshot. The snapshot header may be:
+
+\`\`\`text
+SOV and STJ Height
+Coronary Height
+\`\`\`
+
+Capture the **yellow vertical dimension** from the basal plane to the STJ. Do not capture the blue
+\`SoV\` dimension displayed in the same snapshot.
+
+Store the numeric value with exactly **one digit after the decimal point**, without the \`mm\` unit.
+
+Validated reference values:
+
+| PDF row | Patient | Annulus to STJ Height |
+|---|---|---|
+| 3 | CHERNOUH MOHAMED | 19.9 |
+| 4 | SOUNA EMBARKA | 18.1 |
+| 5 | ARABDJI KHEIRA | 16.5 |
+
+The dimension may be embedded in the snapshot rather than available in normal PDF text extraction.
+Use image inspection/OCR when required. If the value cannot be read confidently, output \`Pending\`.
+
+### AM — RCA Height
+Extracted from \`RCA Height: 17.5 mm\`.
+\`\`\`javascript
+const rcaHeightMatch = text.match(/RCA\\s+Height\\s*:\\s*([\\d.]+)/i);
+if (rcaHeightMatch) row[COL.RCA_HEIGHT] = rcaHeightMatch[1];
+\`\`\`
+
+### AN — LCA Height
+Extracted from \`LCA Height: 12.4 mm\`.
+\`\`\`javascript
+const lcaHeightMatch = text.match(/LCA\\s+Height\\s*:\\s*([\\d.]+)/i);
+if (lcaHeightMatch) row[COL.LCA_HEIGHT] = lcaHeightMatch[1];
+\`\`\`
+
+### AO — SOV Height
+Extracted from \`Sinus of Valsalva Height  10.9 mm\` (Measurements table — no colon before the value).
+\`\`\`javascript
+const sovHeightMatch = text.match(/Sinus\\s+of\\s+Valsalva\\s+Height\\s+([\\d.]+)/i);
+if (sovHeightMatch) row[COL.SOV_HEIGHT] = sovHeightMatch[1];
+\`\`\`
+
+### AP–AR — Sinus of Valsalva Diameters (Right/RCC, Left/LCC, Non/NCC)
+Extracted from the "Sinus Of Valsalva Diameters:" box: \`Left: 33.3 mm  Right: 31.1 mm  Non: 32.5 mm\`.
+Note column order is Right, Left, Non — i.e. AP=Right, AQ=Left, AR=Non.
+\`\`\`javascript
+const sovLeftMatch = text.match(/Sinus\\s+Of\\s+Valsalva\\s+Diameters[\\s\\S]{0,50}?Left\\s*:\\s*([\\d.]+)/i);
+if (sovLeftMatch) row[COL.SOV_LEFT] = sovLeftMatch[1];
+
+const sovRightMatch = text.match(/Sinus\\s+Of\\s+Valsalva\\s+Diameters[\\s\\S]{0,80}?Right\\s*:\\s*([\\d.]+)/i);
+if (sovRightMatch) row[COL.SOV_RIGHT] = sovRightMatch[1];
+
+const sovNonMatch = text.match(/Sinus\\s+Of\\s+Valsalva\\s+Diameters[\\s\\S]{0,110}?Non\\s*:\\s*([\\d.]+)/i);
+if (sovNonMatch) row[COL.SOV_NON] = sovNonMatch[1];
+\`\`\`
+
+### AS — AO-LV Angle
+This value must be captured visually from the PDF snapshot with the header:
+
+\`\`\`text
+Deployment Angle
+\`\`\`
+
+Capture the **yellow angle value displayed near the center of the image**. Do not capture the
+\`RAO\`, \`LAO\`, \`Cranial\`, or \`Caudal\` values shown along the bottom of the snapshot.
+
+Store the angle as a whole number without the degree symbol.
+
+Validated reference values:
+
+| PDF row | Patient | AO-LV Angle |
+|---|---|---|
+| 3 | CHERNOUH MOHAMED | 34 |
+| 4 | SOUNA EMBARKA | 71 |
+| 5 | ARABDJI KHEIRA | 53 |
+
+The angle may be embedded in the snapshot rather than available in normal PDF text extraction.
+Use image inspection/OCR when required. If the value cannot be read confidently, output \`Pending\`.
+
+### AT–AV — ICD Measurements (4mm, 6mm, 8mm)
+First determine the valve type from the Aortic Comments section.
+
+If the report states that the case is a **Tricuspid Aortic Valve**, set all three ICD fields to \`NA\`:
+
+\`\`\`text
+ICD @ 4mm = NA
+ICD @ 6mm = NA
+ICD @ 8mm = NA
+\`\`\`
+
+Match spelling and OCR variations such as:
+
+\`\`\`text
+Tricuspid Aortic Valve
+Tricuspid Aortiuc Valve
+\`\`\`
+
+Validated reference results:
+
+| PDF row | Patient | Valve Type | ICD @ 4mm | ICD @ 6mm | ICD @ 8mm |
+|---|---|---|---|---|---|
+| 3 | CHERNOUH MOHAMED | Tricuspid | NA | NA | NA |
+| 4 | SOUNA EMBARKA | Tricuspid | NA | NA | NA |
+| 5 | ARABDJI KHEIRA | Tricuspid | NA | NA | NA |
+
+Do not attempt to read or calculate ICD measurements for a Tricuspid Aortic Valve case.
+
+If the Aortic Comments identify a **Bicuspid Aortic Valve**, do not output \`NA\`. Continue to the
+relevant ICD snapshots and capture the actual ICD @ 4mm, ICD @ 6mm, and ICD @ 8mm values.
+
+Recognized bicuspid classifications include:
+
+\`\`\`text
+Bicuspid Type 0 Aortic Valve
+Bicuspid Type 1a Aortic Valve
+Bicuspid Type 1b Aortic Valve
+Bicuspid Type 1c Aortic Valve
+\`\`\`
+
+The match must be case-insensitive and tolerant of spacing, punctuation, capitalization, and minor
+OCR/spelling variations. For example, \`Bicuspid Type 1a Aortic Valve\` is a bicuspid case and its ICD
+measurements must be captured.
+
+Decision rule:
+
+\`\`\`text
+Tricuspid case -> ICD @ 4mm, 6mm, and 8mm = NA
+Bicuspid Type 0/1a/1b/1c case -> extract the three actual ICD values
+Valve type uncertain -> do not assume NA; flag for review as Pending
+\`\`\`
+
+The exact visual extraction locations and formatting for bicuspid ICD measurements will be confirmed
+using suitable reference screenshots.
+
+#### ICD @ 4mm visual extraction
+
+For a bicuspid case, locate the snapshot with the header:
+
+\`\`\`text
+Inter-commissural Distance @ 4mm
+\`\`\`
+
+Capture the **yellow diameter value inside the image**, displayed along the inter-commissural
+measurement line. Store the numeric value with one digit after the decimal point and without \`Ø\` or
+the \`mm\` unit.
+
+Example:
+
+\`\`\`text
+Displayed yellow value: Ø 23.9 mm
+Excel value: 23.9
+\`\`\`
+
+Do not capture the bottom label:
+
+\`\`\`text
+Distance: 4.0 mm
+\`\`\`
+
+That bottom value identifies the measurement level and is not the ICD result.
+
+#### ICD @ 8mm visual extraction
+
+For a bicuspid case, locate the snapshot with the header:
+
+\`\`\`text
+Inter-commissural Distance @ 8mm
+\`\`\`
+
+Capture the **yellow diameter value inside the image**, displayed along the inter-commissural
+measurement line. Store the numeric value with one digit after the decimal point and without \`Ø\` or
+the \`mm\` unit.
+
+Example:
+
+\`\`\`text
+Displayed yellow value: Ø 24.1 mm
+Excel value: 24.1
+\`\`\`
+
+Do not capture the bottom label:
+
+\`\`\`text
+Distance: 8.0 mm
+\`\`\`
+
+That bottom value identifies the measurement level and is not the ICD result.
+
+#### ICD @ 6mm visual extraction
+
+For a bicuspid case, locate the snapshot with the header:
+
+\`\`\`text
+Inter-commissural Distance @ 6mm
+\`\`\`
+
+Capture the **yellow diameter value inside the image**, displayed along the inter-commissural
+measurement line. Store the numeric value with one digit after the decimal point and without \`Ø\` or
+the \`mm\` unit.
+
+Example:
+
+\`\`\`text
+Displayed yellow value: Ø 23.9 mm
+Excel value: 23.9
+\`\`\`
+
+Do not capture the bottom label:
+
+\`\`\`text
+Distance: 6.0 mm
+\`\`\`
+
+That bottom value identifies the measurement level and is not the ICD result.
+
+### AW–BA — Aortic Valve Calcification (NC, RC, LC, Total, Grade)
+#### Calcium @NC, @RC, @LC, and Total Calcium
+
+Locate the snapshot with the header:
+
+\`\`\`text
+Aortic Valve Calcification
+\`\`\`
+
+Capture the four calcium-volume values identified by their labels:
+
+\`\`\`text
+NC -> Calcium @NC
+RC -> Calcium @RC
+LC -> Calcium @LC
+Total Calcium -> Total Calcium
+\`\`\`
+
+The values may appear beside the colored segmented regions and may also be repeated in a legend near
+the lower-left corner. Use the explicit \`NC\`, \`RC\`, \`LC\`, and \`Total Calcium\` labels rather than relying
+only on color, because display colors may vary.
+
+Store each value as a whole number without the \`mm³\` unit.
+
+Validated screenshot example:
+
+| Excel field | Displayed value | Excel value |
+|---|---|---|
+| Calcium @NC | 677 mm³ | 677 |
+| Calcium @RC | 577 mm³ | 577 |
+| Calcium @LC | 853 mm³ | 853 |
+| Total Calcium | 2107 mm³ | 2107 |
+
+Validation rule:
+
+\`\`\`text
+NC + RC + LC should equal Total Calcium
+\`\`\`
+
+For the example: \`677 + 577 + 853 = 2107\`. If the values do not reconcile, flag the row for review
+instead of silently changing any value.
+
+Do not capture the bottom \`Distance: 6.0 mm\`; it is not a calcium value.
+
+#### Calcification Grade
+
+Calculate the Calcification Grade from the numeric **Total Calcium** value and write it in column K.
+Do not rely on the descriptive \`Aortic Valve Calcification\` grade printed elsewhere in the report.
+
+Use these inclusive ranges:
+
+| Total Calcium | Calcification Grade |
+|---|---|
+| 0–50 | None |
+| 51–400 | Mild |
+| 401–900 | Moderate |
+| 901 and above | Severe |
+
+Boundary examples:
+
+\`\`\`text
+0 -> None
+50 -> None
+51 -> Mild
+400 -> Mild
+401 -> Moderate
+900 -> Moderate
+901 -> Severe
+2107 -> Severe
+\`\`\`
+
+If Total Calcium is missing, unreadable, or not numeric, set Calcification Grade to \`Pending\` and flag
+the row for review.
+
+### BB–BC — Clock Angles (RCC, RCA)
+These values must be captured visually from two separate snapshots.
+
+#### Clock angle (MID RCC)
+
+Locate the snapshot with the header:
+
+\`\`\`text
+Clock Angle - Mid RCC
+\`\`\`
+
+Capture the **yellow angle value near the center of the image**. Store it as a whole number without
+the degree symbol in column L.
+
+#### Clock angle (MID RCA)
+
+Locate the snapshot with the header:
+
+\`\`\`text
+Clock Angle - Mid RCA
+\`\`\`
+
+Capture the **yellow angle value near the center of the image**. Store it as a whole number without
+the degree symbol in column M.
+
+Validated reference values:
+
+| PDF row | Patient | Clock angle (MID RCC) | Clock angle (MID RCA) |
+|---|---|---|---|
+| 3 | CHERNOUH MOHAMED | 102 | 107 |
+| 4 | SOUNA EMBARKA | 96 | 111 |
+| 5 | ARABDJI KHEIRA | 87 | 100 |
+
+Do not capture the bottom \`Distance\` value in either snapshot. It identifies the image level and is
+not the clock angle.
+
+The angle may be embedded in the snapshot rather than available in normal PDF text extraction. Use
+image inspection/OCR when required. If an angle cannot be read confidently, output \`Pending\` for that
+field.
+
+### BD–CA — Iliac/Femoral Vessel Measurements
+The "Right" / "Left" Common Iliac / External Iliac / Femoral tables (page ~8) interleave both columns
+per line, e.g. \`Common Iliac Ø Min: 7.0 mm ... Min: 6.8 mm\` then \`Max: 7.9 mm Max: 7.4 mm\` etc., and the
+calcification row renders as both labels first then both values: \`Common Iliac Calcification Common Iliac
+Calcification Severe Severe\`.
+
+For each vessel section (Common Iliac / External Iliac / Femoral), the block is bounded between that
+section's \`Ø\` label and the next section's label (or \`Comments:\` for Femoral). Within the block:
+- \`Min:\`/\`Max:\`/\`Average:\` are collected with \`matchAll\` — **1st occurrence = Right, 2nd = Left**.
+- Calcification grade is matched via \`\\b(None|Mild|Moderate|Severe)\\b\` — again 1st = Right, 2nd = Left.
+
+\`\`\`javascript
+// Left Common Iliac (BD–BG) + Right Common Iliac (BP–BS)
+const ciaIdx = text.search(/Common\\s+Iliac\\s*Ø/i);
+if (ciaIdx !== -1) {
+  const ciaEnd = text.substring(ciaIdx).search(/Common\\s+Iliac\\s+Calcification/i);
+  const ciaBlock = ciaEnd === -1 ? text.substring(ciaIdx, ciaIdx + 200) : text.substring(ciaIdx, ciaIdx + ciaEnd);
+
+  const lciaMinAll = [...ciaBlock.matchAll(/Min\\s*:\\s*([\\d.]+)/gi)];
+  const lciaMaxAll = [...ciaBlock.matchAll(/Max\\s*:\\s*([\\d.]+)/gi)];
+  const lciaAvgAll = [...ciaBlock.matchAll(/Average\\s*:\\s*([\\d.]+)/gi)];
+  if (lciaMinAll[1]) row[COL.LCIA_MIN] = lciaMinAll[1][1];
+  if (lciaMaxAll[1]) row[COL.LCIA_MAX] = lciaMaxAll[1][1];
+  if (lciaAvgAll[1]) row[COL.LCIA_AVG] = lciaAvgAll[1][1];
+
+  if (lciaMinAll[0]) row[COL.RCIA_MIN] = lciaMinAll[0][1];
+  if (lciaMaxAll[0]) row[COL.RCIA_MAX] = lciaMaxAll[0][1];
+  if (lciaAvgAll[0]) row[COL.RCIA_AVG] = lciaAvgAll[0][1];
+}
+
+// Calcification grades (BG = Left, BS = Right)
+if (ciaIdx !== -1) {
+  const ciaCalcEnd = text.substring(ciaIdx).search(/External\\s+Iliac\\s*Ø/i);
+  const ciaCalcBlock = ciaCalcEnd === -1 ? text.substring(ciaIdx, ciaIdx + 300) : text.substring(ciaIdx, ciaIdx + ciaCalcEnd);
+  const ciaCalcAll = [...ciaCalcBlock.matchAll(/\\b(None|Mild|Moderate|Severe)\\b/gi)];
+  if (ciaCalcAll[1]) row[COL.LCIA_CALC] = ciaCalcAll[1][1];
+  if (ciaCalcAll[0]) row[COL.RCIA_CALC] = ciaCalcAll[0][1];
+}
+
+// Left External Iliac (BH–BK) + Right External Iliac (BT–BW)
+const eiaIdx = text.search(/External\\s+Iliac\\s*Ø/i);
+if (eiaIdx !== -1) {
+  const eiaEnd = text.substring(eiaIdx).search(/Femoral\\s*Ø/i);
+  const eiaBlock = eiaEnd === -1 ? text.substring(eiaIdx, eiaIdx + 300) : text.substring(eiaIdx, eiaIdx + eiaEnd);
+
+  const leiaMinAll = [...eiaBlock.matchAll(/Min\\s*:\\s*([\\d.]+)/gi)];
+  const leiaMaxAll = [...eiaBlock.matchAll(/Max\\s*:\\s*([\\d.]+)/gi)];
+  const leiaAvgAll = [...eiaBlock.matchAll(/Average\\s*:\\s*([\\d.]+)/gi)];
+  if (leiaMinAll[1]) row[COL.LEIA_MIN] = leiaMinAll[1][1];
+  if (leiaMaxAll[1]) row[COL.LEIA_MAX] = leiaMaxAll[1][1];
+  if (leiaAvgAll[1]) row[COL.LEIA_AVG] = leiaAvgAll[1][1];
+
+  const leiaCalcAll = [...eiaBlock.matchAll(/\\b(None|Mild|Moderate|Severe)\\b/gi)];
+  if (leiaCalcAll[1]) row[COL.LEIA_CALC] = leiaCalcAll[1][1];
+
+  if (leiaMinAll[0]) row[COL.REIA_MIN] = leiaMinAll[0][1];
+  if (leiaMaxAll[0]) row[COL.REIA_MAX] = leiaMaxAll[0][1];
+  if (leiaAvgAll[0]) row[COL.REIA_AVG] = leiaAvgAll[0][1];
+  if (leiaCalcAll[0]) row[COL.REIA_CALC] = leiaCalcAll[0][1];
+}
+
+// Left Femoral (BL–BO) + Right Femoral (BX–CA)
+const faIdx = text.search(/Femoral\\s*Ø/i);
+if (faIdx !== -1) {
+  const faEnd = text.substring(faIdx).search(/Comments\\s*:/i);
+  const faBlock = faEnd === -1 ? text.substring(faIdx, faIdx + 300) : text.substring(faIdx, faIdx + faEnd);
+
+  const lfaMinAll = [...faBlock.matchAll(/Min\\s*:\\s*([\\d.]+)/gi)];
+  const lfaMaxAll = [...faBlock.matchAll(/Max\\s*:\\s*([\\d.]+)/gi)];
+  const lfaAvgAll = [...faBlock.matchAll(/Average\\s*:\\s*([\\d.]+)/gi)];
+  if (lfaMinAll[1]) row[COL.LFA_MIN] = lfaMinAll[1][1];
+  if (lfaMaxAll[1]) row[COL.LFA_MAX] = lfaMaxAll[1][1];
+  if (lfaAvgAll[1]) row[COL.LFA_AVG] = lfaAvgAll[1][1];
+
+  const lfaCalcAll = [...faBlock.matchAll(/\\b(None|Mild|Moderate|Severe)\\b/gi)];
+  if (lfaCalcAll[1]) row[COL.LFA_CALC] = lfaCalcAll[1][1];
+
+  if (lfaMinAll[0]) row[COL.RFA_MIN] = lfaMinAll[0][1];
+  if (lfaMaxAll[0]) row[COL.RFA_MAX] = lfaMaxAll[0][1];
+  if (lfaAvgAll[0]) row[COL.RFA_AVG] = lfaAvgAll[0][1];
+  if (lfaCalcAll[0]) row[COL.RFA_CALC] = lfaCalcAll[0][1];
+}
+\`\`\`
+
+### CB — Abdominal Aorta Calcification
+Extracted from the Comments line, e.g. \`Severe calcification observed in Abdominal Aorta\` or
+\`Severe Calcification Observed at Abdominal Aorta\`. The grade word must immediately precede
+"calcification observed in/at (the) Abdominal Aorta" to avoid matching an unrelated grade word
+from a later comment line.
+\`\`\`javascript
+const abdAortaMatch = text.match(/\\b(None|Mild|Moderate|Severe)\\b\\s*calcification\\s+observed\\s+(?:in|at)\\s+(?:the\\s+)?Abdominal\\s+Aorta/i);
+if (abdAortaMatch) row[COL.ABD_AORTA_CALC] = abdAortaMatch[1];
+\`\`\`
+
+### CC — Aortic Comments
+Capture **all comments from pages 1 and 2 that belong to the patient/aortic valve analysis** and write
+them together in column N of the focused output.
+
+This includes both comment areas:
+
+1. The initial \`Comments:\` field in the Patient Information section, including the analysis phase and
+   CT scan date.
+2. The detailed \`Comments:\` block below the aortic measurements, including valve type, valve
+   calcification, annular/LVOT observations, and aortic observations.
+
+Example combined value:
+
+\`\`\`text
+3mensio analysis is done on 45% Phase.
+CT Scan date : 16-05-2026
+Tricuspid Aortic Valve.
+Mild Aortic Valve Calcification.
+Annular and LVOT Calcification Observed.
+Calcification Extending into LVOT from LCC.
+Severe Calcification Observed at Arch Of Aorta.
+Mild Calcification Observed at Descending Aorta.
+\`\`\`
+
+Preserve the original comment order from the PDF and place each comment on a separate line within the
+same Excel cell. Enable Excel text wrapping for this column.
+
+Do not include:
+
+\`\`\`text
+The "Comments:" label
+Page headers or footers
+Patient ID or patient name from the footer
+Measurement table labels or values
+Femoral/access comments from later pages
+\`\`\`
+
+Capture text from both pages even when the first comment block starts on page 1 and the detailed block
+continues onto page 2. Remove exact duplicate lines while preserving the first occurrence. Keep the
+original wording and spelling; do not medically rewrite or autocorrect the report comments.
+
+If no aortic comments are found on either page, output \`Pending\`.
+
+### CD — Femoral Comments
+Capture **all lines in the \`Comments:\` block directly below the Right/Left Common Iliac, External
+Iliac, and Femoral measurement table**. Write the combined result in column O of the focused output.
+
+Start capture immediately after:
+
+\`\`\`text
+Comments:
+\`\`\`
+
+Stop before the next image/snapshot section, page footer, or page boundary.
+
+Example:
+
+\`\`\`text
+Severe Calcification Observed at Abdominal Aorta.
+Severe Calcification Observed at Both Common Iliac Arteries.
+Severe Calcification Observed at Both External Iliac Arteries.
+Moderate Calcification Observed at Both Femoral Arteries.
+\`\`\`
+
+Preserve the original comment order from the PDF and place each comment on a separate line within the
+same Excel cell. Enable Excel text wrapping for this column.
+
+Do not include:
+
+\`\`\`text
+The "Comments:" label
+Right/Left vessel table measurements
+Calcification grades from the table itself
+The standalone "Calcifications" image headers below the comments
+Page headers or footers
+\`\`\`
+
+Keep the original wording and spelling; do not medically rewrite or autocorrect the comments. Remove
+exact duplicate lines while preserving the first occurrence. If no Femoral Comments block is found,
+output \`Pending\`.
+
+### CE — Subclavian/Carotid/Transapical Analysis
+This focused-output field is an access-analysis classification written in column P.
+
+If the PDF contains a section or snapshot header named:
+
+\`\`\`text
+Subclavian
+\`\`\`
+
+set the Excel value to:
+
+\`\`\`text
+Subclavian
+\`\`\`
+
+The header may appear above the access table and/or above a related snapshot. A case-insensitive exact
+word match should be used so that unrelated mentions inside comments do not trigger the classification.
+
+For this rule, do not copy the Subclavian diameter, calcification, access-site value, or comments into
+column P. The presence of the \`Subclavian\` section/snapshot header is sufficient.
+
+If the same PDF also contains a section header named:
+
+\`\`\`text
+Carotids
+\`\`\`
+
+set the Excel value to:
+
+\`\`\`text
+Subclavian & Carotid
+\`\`\`
+
+Use a case-insensitive exact header match. The combined classification takes priority over the
+Subclavian-only result.
+
+Decision rule:
+
+\`\`\`text
+Subclavian header only -> Subclavian
+Subclavian header + Carotids header -> Subclavian & Carotid
+Carotids header only -> Carotid
+No recognized access-analysis header -> NA
+\`\`\`
+
+Do not copy Carotid diameter, calcification, access-site values, or comments into column P.
+
+No Transapical-specific extraction rule is required at present because such cases are exceptionally
+rare. Do not attempt to infer a Transapical classification without a future confirmed rule.
+
+### CF — Status
+Fixed value: \`NA\`
+
+### CG — Mail Notes
+Fixed value: \`Pending\`. Manual entry.
+
+### CH — Meril Representative
+Fixed value: \`Pending\`. Manual entry.
+
+### CI — Received from
+Fixed value: \`Pending\`. Manual entry.
+
+---
+
+## PDF Text Extraction — Critical Implementation
+
+3mensio PDFs render each character as a separate PDF.js text item.
+Simple \`items.map(i => i.str).join('\\n')\` produces spaced-out text like \`C r e a t e d B y\`.
+
+**Correct approach:** group by Y coordinate and use X-position gaps to decide spacing.
+
+\`\`\`javascript
+async function readPDFText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+
+    const lineMap = new Map();
+    tc.items.forEach(item => {
+      if (!item.str) return;
+      const y = Math.round(item.transform[5] / 5) * 5; // 5px rounding merges split words
+      if (!lineMap.has(y)) lineMap.set(y, []);
+      lineMap.get(y).push({ x: item.transform[4], w: item.width || 0, str: item.str });
+    });
+
+    const sortedYs = Array.from(lineMap.keys()).sort((a, b) => b - a);
+    const pageLines = sortedYs.map(y => {
+      const items = lineMap.get(y).sort((a, b) => a.x - b.x);
+      let line = '';
+      for (let i = 0; i < items.length; i++) {
+        const cur = items[i];
+        if (i === 0) { line += cur.str; continue; }
+        const prev = items[i - 1];
+        const gap = cur.x - (prev.x + prev.w);
+        const charW = prev.w > 0 ? prev.w / (prev.str.length || 1) : 3;
+        line += gap > charW * 0.5 ? ' ' + cur.str : cur.str;
+      }
+      return line.trim();
+    }).filter(l => l.length > 0);
+
+    fullText += pageLines.join('\\n') + '\\n';
+  }
+  return fullText;
+}
+\`\`\`
+
+---
+
+## Field Extraction — Two-Column Layout
+
+3mensio PDFs use a two-column layout. The same line contains two label:value pairs:
+\`\`\`
+Creation Date: 01-06-2026 Physician: Pr Nedjar Dr Takhdem
+Created By: MERIL TAVI CORELAB (AG) Hospital: Chu Blida
+\`\`\`
+
+\`extractAfterLabelStrict\` handles this by:
+1. Finding the label (case-insensitive)
+2. Taking text up to end of line
+3. Stopping before the next **Title Case** label (e.g. \`Hospital:\`, \`City:\`) using a **case-sensitive** regex
+4. ALL-CAPS words (e.g. \`MERIL\`, \`TAVI\`) are NOT treated as label boundaries
+
+\`\`\`javascript
+function extractAfterLabelStrict(text, label) {
+  const escaped = label.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+  const labelRe = new RegExp(escaped + '\\\\s*:\\\\s*', 'i');
+  const labelMatch = labelRe.exec(text);
+  if (!labelMatch) return '';
+
+  const afterLabel = text.substring(labelMatch.index + labelMatch[0].length);
+  const nlIdx = afterLabel.search(/[\\n\\r]/);
+  const sameLine = nlIdx >= 0 ? afterLabel.substring(0, nlIdx) : afterLabel;
+
+  // Case-sensitive stop: Title Case word(s) + colon
+  const titleCaseStop = /\\s+[A-Z][a-z][A-Za-z]*(?:\\s+[A-Z][a-z][A-Za-z]*)*\\s*:/;
+  const stopMatch = titleCaseStop.exec(sameLine);
+  if (stopMatch && stopMatch.index > 0) return sameLine.substring(0, stopMatch.index).trim();
+
+  if (!sameLine.trim()) {
+    const nextLine = afterLabel.replace(/^[\\n\\r]+/, '').match(/^([^\\n\\r]+)/);
+    if (nextLine) return nextLine[1].trim();
+  }
+  return sameLine.trim();
+}
+\`\`\`
+
+---
+
+## Empty Cell Rule
+
+If data is not found, leave the Excel cell **blank** (empty string).
+Do NOT fill missing fields with \`NA\`.
+Only \`CF (Status)\` is hardcoded to \`NA\`.
+
+---
+
+## toTitleCase Helper
+
+Converts ALL-CAPS strings to Title Case (e.g. \`CHU BLIDA\` → \`Chu Blida\`, \`ALGERIA\` → \`Algeria\`).
+Applied to Hospital (K), City (L), Country (M).
+
+\`\`\`javascript
+function toTitleCase(str) {
+  if (!str) return str;
+  return str.replace(/\\w\\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+\`\`\`
+
+---
+
+## Column Index Map
+
+\`\`\`javascript
+const COL = {
+  CASE_ENTRY_DATE: 0,   // A
+  CASE_ENTERED_BY: 1,   // B
+  CASE_DONE_BY: 2,      // C
+  PATIENT_ID: 3,        // D
+  PATIENT_NAME: 4,      // E
+  AGE: 5,               // F
+  GENDER: 6,            // G
+  YEAR: 7,              // H
+  PATIENT_INITIAL: 8,   // I
+  PHYSICIAN: 9,         // J
+  HOSPITAL: 10,         // K
+  CITY: 11,             // L
+  COUNTRY: 12,          // M
+  REGION: 13,           // N
+  CONTINENT: 14,        // O
+  RECEIVED_DATE: 15,    // P
+  CREATION_DATE: 16,    // Q
+  CT_SCAN_DATE: 17,     // R
+  TYPE_OF_VALVE: 18,    // S
+  PHASE: 19,            // T
+  AA_AREA: 20,          // U
+  AA_AREA_DERIVED: 21,  // V
+  AA_PERIMETER: 22,     // W
+  AA_PERIMETER_DERIVED: 23, // X
+  AA_MINIMUM: 24,       // Y
+  AA_MAXIMUM: 25,       // Z
+  AA_AVERAGE: 26,       // AA
+  AA_ECCENTRICITY: 27,  // AB
+  ASC_MINIMUM: 28,      // AC
+  ASC_MAXIMUM: 29,      // AD
+  ASC_AVERAGE: 30,      // AE
+  LVOT_MINIMUM: 31,     // AF
+  LVOT_MAXIMUM: 32,     // AG
+  LVOT_AVERAGE: 33,     // AH
+  STJ_MINIMUM: 34,      // AI
+  STJ_MAXIMUM: 35,      // AJ
+  STJ_AVERAGE: 36,      // AK
+  ANNULUS_STJ_HEIGHT: 37, // AL
+  RCA_HEIGHT: 38,       // AM
+  LCA_HEIGHT: 39,       // AN
+  SOV_HEIGHT: 40,       // AO
+  SOV_RIGHT: 41,        // AP
+  SOV_LEFT: 42,         // AQ
+  SOV_NON: 43,          // AR
+  AO_LV_ANGLE: 44,      // AS
+  ICD_4MM: 45,          // AT
+  ICD_6MM: 46,          // AU
+  ICD_8MM: 47,          // AV
+  CALC_NC: 48,          // AW
+  CALC_RC: 49,          // AX
+  CALC_LC: 50,          // AY
+  CALC_TOTAL: 51,       // AZ
+  CALC_GRADE: 52,       // BA
+  CLOCK_RCC: 53,        // BB
+  CLOCK_RCA: 54,        // BC
+  LCIA_MIN: 55,         // BD
+  LCIA_MAX: 56,         // BE
+  LCIA_AVG: 57,         // BF
+  LCIA_CALC: 58,        // BG
+  LEIA_MIN: 59,         // BH
+  LEIA_MAX: 60,         // BI
+  LEIA_AVG: 61,         // BJ
+  LEIA_CALC: 62,        // BK
+  LFA_MIN: 63,          // BL
+  LFA_MAX: 64,          // BM
+  LFA_AVG: 65,          // BN
+  LFA_CALC: 66,         // BO
+  RCIA_MIN: 67,         // BP
+  RCIA_MAX: 68,         // BQ
+  RCIA_AVG: 69,         // BR
+  RCIA_CALC: 70,        // BS
+  REIA_MIN: 71,         // BT
+  REIA_MAX: 72,         // BU
+  REIA_AVG: 73,         // BV
+  REIA_CALC: 74,        // BW
+  RFA_MIN: 75,          // BX
+  RFA_MAX: 76,          // BY
+  RFA_AVG: 77,          // BZ
+  RFA_CALC: 78,         // CA
+  ABD_AORTA_CALC: 79,   // CB
+  AORTIC_COMMENTS: 80,  // CC
+  FEMORAL_COMMENTS: 81, // CD
+  SUBCLAVIAN: 82,       // CE
+  STATUS: 83,           // CF
+  MAIL_NOTES: 84,       // CG
+  MERIL_REP: 85,        // CH
+  RECEIVED_FROM: 86     // CI
+};
+\`\`\`
+
+---
+
+## Header Arrays & Merge Ranges
+
+See existing \`HEADER_ROW1\`, \`HEADER_ROW2\`, and \`MERGE_RANGES\` constants in the HTML file.
+Both header arrays must have exactly 87 values.
+Sheet name must be \`Sample Tracker\` (matches the sample workbook).
+
+---
+
+## Debug Panel
+
+A debug raw-text panel is embedded in the page (visible after processing).
+Each processed PDF gets its own tab (labeled \`Row N\`, filename as tooltip) showing the
+first 10,000 chars of that file's extracted text, for diagnosing extraction failures.
+Tabs are rebuilt on every "Process PDFs" run. The first tab is shown by default.
+Remove or hide this panel once all fields are confirmed working.
+
+---
+
+## Preview Table — Blank Cell Highlighting
+
+In the on-page "Extracted Data Preview" table, any cell with no extracted value renders as
+\`—\` with a yellow background (\`.blank-val\` class) so missing/uncertain fields are easy to
+spot at a glance before download.
+
+---
+
+## Important Rules
+
+- No backend, no Node.js, no Python, no server.
+- Do not create or save any PNG, JPG, or other temporary image files in the working folder while
+  inspecting PDF snapshots. Render pages in memory or use temporary storage outside the project, and
+  remove any temporary artifact immediately after inspection.
+- No fake values. No guessing.
+- The authoritative output is the focused 16-column workbook, columns A through P.
+- Column order must never change.
+- The leading filename number determines the Excel row.
+- Create the Excel workbook and its column headers before processing any PDF.
+- Process reports strictly in ascending filename-number order, one PDF at a time.
+- Complete and save the current report's Excel row before opening or processing the next report.
+- For the current continuation batch, begin with PDF \`11.\` and move to \`12.\` only after row 11 is complete.
+- Missing or uncertain values use \`Pending\` unless a confirmed rule requires \`NA\`.
+- \`NA\` is required for all ICD fields in a confirmed Tricuspid Aortic Valve case.
+- \`NA\` is required in column P when no recognized access-analysis section is present.
+- Image-based measurements must come from the confirmed snapshot header and target annotation.
+- Never substitute a snapshot's bottom \`Distance\` level for the required measurement.
+- OCR results must be validated and exposed for manual correction when confidence is low.
+- A single failed report must not stop the remaining batch.
+- Duplicate destination rows must block download until resolved.
+- Preserve blank rows for missing filename numbers.
+- Excel comments columns N and O must use wrapped multiline cells.
+- Code must remain readable because extraction and OCR rules may require ongoing refinement.
+`;
+
+document.getElementById('downloadMdBtn').addEventListener('click', () => {
+  const blob = new Blob([SNAPSHOT_MD], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'CLAUDE.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Go Back — returns to the main text-entries page from either view
+document.getElementById('goBackBtn').addEventListener('click', () => {
+  setSnapshotView(false);
+  setMergerView(false);
+});
+
+// ─── Excel Merger view ────────────────────────────────────────────────────────
+const excelMergerTab = document.getElementById('excelMergerTab');
+const mergerPanel    = document.getElementById('mergerPanel');
+const mergerDropZone = document.getElementById('mergerDropZone');
+const excelInput     = document.getElementById('excelInput');
+const mergerFileList = document.getElementById('mergerFileList');
+let mergerFiles = []; // selected .xlsx files (merge logic to be added)
+
+function setMergerView(active) {
+  excelMergerTab.classList.toggle('active', active);
+  excelMergerTab.parentElement.classList.toggle('snapshot-active', active);
+  document.getElementById('goBackWrap').style.display = active ? '' : 'none';
+  mergerPanel.style.display = active ? '' : 'none';
+  viewTop.style.display    = active ? 'none' : '';
+  viewBottom.style.display = active ? 'none' : '';
+  processBtn.style.display  = active ? 'none' : '';
+  downloadBtn.style.display = active ? 'none' : '';
+  clearBtn.style.display    = active ? 'none' : '';
+  document.getElementById('resetBatchBtn').style.display = active ? 'none' : '';
+  snapshotTab.style.display = active ? 'none' : '';
+}
+
+excelMergerTab.addEventListener('click', () => setMergerView(true));
+
+mergerDropZone.addEventListener('click', () => excelInput.click());
+mergerDropZone.addEventListener('dragover', e => { e.preventDefault(); mergerDropZone.classList.add('drag-over'); });
+mergerDropZone.addEventListener('dragleave', () => mergerDropZone.classList.remove('drag-over'));
+mergerDropZone.addEventListener('drop', e => {
+  e.preventDefault(); mergerDropZone.classList.remove('drag-over');
+  addMergerFiles(e.dataTransfer.files);
+});
+excelInput.addEventListener('change', () => { addMergerFiles(excelInput.files); excelInput.value = ''; });
+
+function addMergerFiles(fileList) {
+  for (const f of fileList) {
+    if (!/\.xlsx$/i.test(f.name)) continue;
+    if (mergerFiles.some(m => m.name === f.name)) continue; // skip duplicates
+    mergerFiles.push(f);
+  }
+  renderMergerFileList();
+}
+
+function renderMergerFileList() {
+  mergerFileList.innerHTML = '';
+  mergerFiles.forEach((f, idx) => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    const name = document.createElement('span');
+    name.className = 'fname';
+    name.textContent = f.name;
+    const rm = document.createElement('span');
+    rm.textContent = '✕';
+    rm.style.cursor = 'pointer';
+    rm.style.color = '#94a3b8';
+    rm.addEventListener('click', () => { mergerFiles.splice(idx, 1); renderMergerFileList(); });
+    div.appendChild(name);
+    div.appendChild(rm);
+    mergerFileList.appendChild(div);
+  });
+  mergeBtn.disabled = mergerFiles.length < 2;
+  hideMergerStatus();
+}
+
+// ─── Excel merge ──────────────────────────────────────────────────────────────
+const mergeBtn = document.getElementById('mergeBtn');
+const mergerStatus = document.getElementById('mergerStatus');
+
+function showMergerStatus(msg, type) {
+  mergerStatus.textContent = msg;
+  mergerStatus.className = 'status-bar ' + type;
+}
+function hideMergerStatus() {
+  mergerStatus.className = 'status-bar';
+  mergerStatus.textContent = '';
+}
+
+mergeBtn.addEventListener('click', doMerge);
+
+async function doMerge() {
+  try {
+    showMergerStatus(`Merging ${mergerFiles.length} files…`, 'info');
+    const merged = {};  // excelRow -> row array
+    const source = {};  // excelRow -> filename it came from
+    const conflicts = [];
+
+    for (const f of mergerFiles) {
+      const data = new Uint8Array(await f.arrayBuffer());
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', blankrows: true });
+
+      // i = 2 → Excel row 3; rows 1-2 are headers in every batch file
+      for (let i = 2; i < aoa.length; i++) {
+        const rowArr = aoa[i] || [];
+        if (!rowArr.some(c => String(c).trim() !== '')) continue; // blank filler row
+        const excelRow = i + 1;
+        if (merged[excelRow]) {
+          conflicts.push(`row ${excelRow} (in "${source[excelRow]}" and "${f.name}")`);
+          continue;
+        }
+        merged[excelRow] = rowArr;
+        source[excelRow] = f.name;
+      }
+    }
+
+    if (conflicts.length) {
+      showMergerStatus('✕ Merge blocked — overlapping data found at: ' + conflicts.join(', ') +
+        '. Remove the duplicate file and try again.', 'error');
+      return;
+    }
+
+    const rowNums = Object.keys(merged).map(Number);
+    if (!rowNums.length) {
+      showMergerStatus('✕ No data rows found in the selected files.', 'error');
+      return;
+    }
+    const minRow = Math.min(...rowNums);
+    const maxRow = Math.max(...rowNums);
+
+    // Build merged workbook with the canonical headers
+    const wsData = [HEADER_ROW1.slice(), HEADER_ROW2.slice()];
+    for (let r = 3; r <= maxRow; r++) {
+      const arr = merged[r] ? merged[r].slice() : [];
+      arr.length = NUM_COLS;
+      for (let c = 0; c < NUM_COLS; c++) if (arr[c] === undefined) arr[c] = '';
+      wsData.push(arr);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!merges'] = MERGE_RANGES.map(([r1,c1,r2,c2]) => ({
+      s: { r: r1, c: c1 }, e: { r: r2, c: c2 }
+    }));
+    ws['!cols'] = Array.from({ length: NUM_COLS }, (_, i) => {
+      if (i === COL.PATIENT_NAME || i === COL.PHYSICIAN || i === COL.HOSPITAL) return { wch: 22 };
+      if (i === COL.AORTIC_COMMENTS || i === COL.FEMORAL_COMMENTS || i === COL.SUBCLAVIAN) return { wch: 35 };
+      return { wch: 14 };
+    });
+
+    const outWb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(outWb, ws, 'Sample Tracker');
+    const fileName = `Merged ${minRow} - TO - ${maxRow}.xlsx`;
+    XLSX.writeFile(outWb, fileName);
+    showMergerStatus(`✓ Merged ${mergerFiles.length} files (${rowNums.length} data rows, rows ${minRow}–${maxRow}) and downloaded as "${fileName}".`, 'success');
+  } catch (err) {
+    showMergerStatus('✕ Merge failed: ' + err.message, 'error');
+  }
+}
+
+// ─── Copy initial prompt to clipboard ─────────────────────────────────────────
+const copyPromptBtn = document.getElementById('copyPromptBtn');
+copyPromptBtn.addEventListener('click', () => {
+  const loc = document.getElementById('workLocationInput').value.trim() || '[Enter your working location]';
+  const promptText = [
+    loc,
+    '',
+    'Make the excel file first with column headers and then process PDF one by one',
+    '',
+    'Start from "3." once data is entered to excel sheet then process PDF\'s one by one ( First start with "3." then "4." & till the last PDF in folder) sequentially.'
+  ].join('\n');
+
+  const showCopied = () => {
+    const orig = copyPromptBtn.textContent;
+    copyPromptBtn.textContent = '✓ Copied!';
+    setTimeout(() => { copyPromptBtn.textContent = orig; }, 1500);
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(promptText).then(showCopied).catch(() => fallbackCopy(promptText, showCopied));
+  } else {
+    fallbackCopy(promptText, showCopied);
+  }
+});
+
+function fallbackCopy(text, onDone) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  onDone();
+}
+
+// ─── File management ──────────────────────────────────────────────────────────
+function getTargetRowNumber(fileName) {
+  const match = fileName.match(/^(\d+)\./);
+  return match ? Number(match[1]) : null;
+}
+
+function addFiles(fileList) {
+  const arr = Array.from(fileList);
+  arr.forEach(f => {
+    if (!f.name.toLowerCase().endsWith('.pdf')) {
+      showStatus(`"${f.name}" is not a PDF file and was skipped.`, 'warning');
+      return;
+    }
+    // avoid duplicates by name
+    if (selectedFiles.find(x => x.file.name === f.name)) {
+      showStatus(`"${f.name}" is already in the list.`, 'warning');
+      return;
+    }
+    const rowNum = getTargetRowNumber(f.name);
+    const valid = rowNum !== null;
+    const warning = valid ? null : 'Filename must start with a row number (e.g. "3.filename.pdf")';
+    selectedFiles.push({ file: f, rowNum, valid, warning });
+  });
+  checkDuplicateRows();
+  renderFileList();
+  updateCounters();
+  updateButtons();
+}
+
+function checkDuplicateRows() {
+  const seen = {};
+  selectedFiles.forEach(item => {
+    if (item.rowNum === null) return;
+    if (seen[item.rowNum] === undefined) {
+      seen[item.rowNum] = 0;
+    }
+    seen[item.rowNum]++;
+  });
+  selectedFiles.forEach(item => {
+    if (item.rowNum !== null && seen[item.rowNum] > 1) {
+      item.dupWarning = `Duplicate target row ${item.rowNum} — resolve before downloading`;
+    } else {
+      item.dupWarning = null;
+    }
+  });
+}
+
+function hasDuplicates() {
+  return selectedFiles.some(x => x.dupWarning);
+}
+
+function renderFileList() {
+  fileListEl.innerHTML = '';
+  if (selectedFiles.length === 0) return;
+  selectedFiles.forEach((item, idx) => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    const warns = [item.warning, item.dupWarning].filter(Boolean).join(' | ');
+    div.innerHTML = `
+      <span class="fname">${item.file.name}</span>
+      ${item.rowNum !== null
+        ? `<span class="row-badge">Row ${item.rowNum}</span>`
+        : `<span class="err-badge">No row #</span>`}
+      ${warns ? `<span class="warn-badge" title="${warns}">⚠ ${warns.substring(0,60)}${warns.length>60?'…':''}</span>` : ''}
+      ${item.processed ? `<span class="ok-badge">✓ Done</span>` : ''}
+      <button class="remove-btn" data-idx="${idx}" title="Remove">✕</button>
+    `;
+    fileListEl.appendChild(div);
+  });
+  fileListEl.querySelectorAll('.remove-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const i = Number(e.currentTarget.dataset.idx);
+      selectedFiles.splice(i, 1);
+      checkDuplicateRows();
+      renderFileList();
+      updateCounters();
+      updateButtons();
+    });
+  });
+}
+
+function updateCounters() {
+  if (selectedFiles.length === 0) { countersEl.style.display = 'none'; return; }
+  countersEl.style.display = 'flex';
+  const valid = selectedFiles.filter(x => x.valid).length;
+  const warns = selectedFiles.filter(x => x.warning || x.dupWarning).length;
+  const maxRow = selectedFiles.reduce((m, x) => x.rowNum ? Math.max(m, x.rowNum) : m, 0);
+  cntTotal.textContent = selectedFiles.length;
+  cntValid.textContent = valid;
+  cntWarning.textContent = warns;
+  cntMaxRow.textContent = maxRow || '—';
+}
+
+function updateButtons() {
+  const anyValid = selectedFiles.some(x => x.valid);
+  processBtn.disabled = !anyValid;
+}
+
+function clearAll() {
+  selectedFiles = [];
+  processedRows = {};
+  workbookBlob = null;
+  renderFileList();
+  updateCounters();
+  updateButtons();
+  downloadBtn.disabled = true;
+  previewSection.classList.remove('show');
+  progressWrap.classList.remove('show');
+  hideStatus();
+}
+
+// ─── PDF extraction helpers ───────────────────────────────────────────────────
+function extractAfterLabel(text, label) {
+  // Matches "Label :" or "Label:" then captures until next newline
+  const re = new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*:?\\s*([^\\n\\r]+)', 'i');
+  const m = text.match(re);
+  if (!m) return '';
+  return m[1].trim();
+}
+
+function extractAfterLabelStrict(text, label) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Step 1: find the label (case-insensitive) and get everything after "Label:"
+  const labelRe = new RegExp(escaped + '\\s*:\\s*', 'i');
+  const labelMatch = labelRe.exec(text);
+  if (!labelMatch) return '';
+
+  const afterLabel = text.substring(labelMatch.index + labelMatch[0].length);
+
+  // Step 2: take only the current line (up to first newline)
+  const nlIdx = afterLabel.search(/[\n\r]/);
+  const sameLine = nlIdx >= 0 ? afterLabel.substring(0, nlIdx) : afterLabel;
+
+  // Step 3: stop before the next Title Case label on the same line.
+  // Title Case = first letter UPPER, second letter lower (e.g. "Hospital", "City").
+  // This is case-SENSITIVE so ALL-CAPS values like "MERIL" are not treated as labels.
+  const titleCaseStop = /\s+[A-Z][a-z][A-Za-z]*(?:\s+[A-Z][a-z][A-Za-z]*)*\s*:/;
+  const stopMatch = titleCaseStop.exec(sameLine);
+  if (stopMatch && stopMatch.index > 0) {
+    return sameLine.substring(0, stopMatch.index).trim();
+  }
+
+  // Step 4: if nothing found on same line, try next line
+  if (!sameLine.trim()) {
+    const nextLine = afterLabel.replace(/^[\n\r]+/, '').match(/^([^\n\r]+)/);
+    if (nextLine) return nextLine[1].trim();
+  }
+
+  return sameLine.trim();
+}
+
+function extractPatientName(text) {
+  // Try "Patient Name:" first, then "Name:" scoped to patient section
+  let v = extractAfterLabelStrict(text, 'Patient Name');
+  if (v) return v;
+  // "Name:" may appear in many places — try to find it near "Patient" context
+  const patBlock = text.match(/patient\s+information[\s\S]{0,400}/i);
+  if (patBlock) {
+    v = extractAfterLabelStrict(patBlock[0], 'Name');
+    if (v) return v;
+  }
+  // Fallback: first "Name:" in the text
+  v = extractAfterLabelStrict(text, 'Name');
+  return v;
+}
+
+function extractSection(text, sectionTitle) {
+  // Returns the text block that belongs to the section, up to ~2000 chars
+  const esc = sectionTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(esc + '[\\s\\S]{0,2000}', 'i');
+  const m = text.match(re);
+  return m ? m[0] : '';
+}
+
+function extractMeasurement(sectionText, label) {
+  if (!sectionText) return '';
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(escaped + '\\s*:?\\s*([\\d.,]+)', 'i');
+  const m = sectionText.match(re);
+  return m ? m[1].trim() : '';
+}
+
+function extractAorticValveFirstCommentLine(text) {
+  // 1. Find Aortic Valve section
+  const avIdx = text.search(/aortic\s+valve/i);
+  if (avIdx === -1) return '';
+  const avText = text.substring(avIdx, avIdx + 3000);
+  // 2. Find Comments: inside that section
+  const commIdx = avText.search(/comments\s*:/i);
+  if (commIdx === -1) return '';
+  const afterComments = avText.substring(commIdx).replace(/comments\s*:\s*/i, '');
+  // 3. Extract first non-empty line, strip leading "Seems to be " or similar qualifiers
+  const lines = afterComments.split(/[\n\r]+/);
+  for (const ln of lines) {
+    let t = ln.trim();
+    if (t && t.length > 1) {
+      t = t.replace(/^seems\s+to\s+be\s+/i, '');
+      return t;
+    }
+  }
+  return '';
+}
+
+function extractFullCommentBlock(text, sectionKeyword) {
+  const esc = sectionKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sIdx = text.search(new RegExp(esc, 'i'));
+  if (sIdx === -1) return '';
+  const block = text.substring(sIdx, sIdx + 3000);
+  const commIdx = block.search(/comments\s*:/i);
+  if (commIdx === -1) return '';
+  const afterComments = block.substring(commIdx).replace(/comments\s*:\s*/i, '').trim();
+  // Take up to 5 lines
+  const lines = afterComments.split(/[\n\r]+/).slice(0, 5).map(l => l.trim()).filter(Boolean);
+  return lines.join(' | ');
+}
+
+function extractFemoralComments(text) {
+  // Try femoral access / access vessel / iliac sections
+  for (const kw of ['Femoral', 'Access Vessel', 'Iliac', 'Access Route']) {
+    const block = extractFullCommentBlock(text, kw);
+    if (block) return block;
+  }
+  return '';
+}
+
+function extractSubclavianAnalysis(text) {
+  for (const kw of ['Subclavian', 'Carotid', 'Transapical']) {
+    const block = extractFullCommentBlock(text, kw);
+    if (block) return block;
+  }
+  return '';
+}
+
+// Extract numeric measurement from a named section with a specific sub-label
+// e.g. extractFromSection(text, 'Aortic Annulus', 'Minimum')
+function extractFromSection(text, section, sublabel) {
+  const sec = extractSection(text, section);
+  return extractMeasurement(sec, sublabel);
+}
+
+// Patient ID — appears in page footer: "39037 CHERNOUH, MOHAMED  Page 1 of N"
+// The ID is a 4-6 digit number at the start of a line followed by uppercase letters.
+function extractPatientID(text) {
+  // Footer line format: "<ID> <PATIENT NAME> Page X of Y"
+  // ID is always the first token on that line — can be any format (numeric, alphanumeric, etc.)
+  const footerLine = text.match(/([^\n\r]*Page\s+1\s+of\s+\d[^\n\r]*)/i);
+  if (footerLine) {
+    const firstToken = footerLine[1].trim().match(/^(\S+)/);
+    if (firstToken) return firstToken[1].trim();
+  }
+  // Fallback: "Patient ID:" label
+  const labeled = text.match(/Patient\s*ID\s*:\s*(\S[^\n\r]*)/i);
+  return labeled ? labeled[1].trim() : '';
+}
+
+// Dedicated extractor for "Created By:" — handles 3mensio two-column layout where
+// "Created By: MERIL TAVI CORELAB (AG)" and "Hospital: Chu Blida" appear on the same line.
+// Uses case-sensitive regex to strip trailing Title Case labels (Hospital, City…)
+// without removing ALL-CAPS value words (MERIL, TAVI, CORELAB).
+// Title Case: first letter uppercase, rest lowercase — e.g. "ALGERIA" → "Algeria"
+function toTitleCase(str) {
+  if (!str) return str;
+  return str.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+function extractCreatedBy(text) {
+  const m = text.match(/Created\s*By\s*:\s*([^\n\r]+)/i);
+  if (!m) return '';
+  let val = m[1].trim();
+  // Remove any trailing "TitleCase word(s):" suffix and everything after it.
+  // [A-Z][a-z] = Title Case (e.g. "Hospital"), NOT all-caps like "MERIL".
+  val = val.replace(/\s+[A-Z][a-z][A-Za-z]*(?:\s+[A-Z][a-z][A-Za-z]*)*\s*:.*$/, '');
+  return val.trim();
+}
+
+// ─── Build one tracker row (87 values) from extracted PDF text ────────────────
+function buildTrackerRow(text, fileName) {
+  const row = new Array(NUM_COLS).fill('');
+
+  // Column A: today's date in DD-MM-YYYY
+  const _now = new Date();
+  const _dd = String(_now.getDate()).padStart(2, '0');
+  const _mm = String(_now.getMonth() + 1).padStart(2, '0');
+  const _yyyy = _now.getFullYear();
+  row[COL.CASE_ENTRY_DATE] = `${_dd}-${_mm}-${_yyyy}`;
+
+  // Column B: fixed value
+  row[COL.CASE_ENTERED_BY] = 'Hiren';
+
+  // Column C: "Created By" from PDF → Case done by
+  row[COL.CASE_DONE_BY] = extractCreatedBy(text);
+
+  // Column D: Patient ID
+  row[COL.PATIENT_ID] = extractPatientID(text);
+
+  // Column E: Patient Name — "Name: CHERNOUH MOHAMED  Height: ..."
+  row[COL.PATIENT_NAME] = extractAfterLabelStrict(text, 'Name');
+
+  // Column I: Patient Initial — first letter of each word in patient name e.g. "CM"
+  const pName = row[COL.PATIENT_NAME];
+  if (pName) {
+    row[COL.PATIENT_INITIAL] = pName.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase();
+  }
+
+  // Column F: Age — "Year Of Birth (Age): 1940 (86)" → extract 86 from brackets
+  const ageMatch = text.match(/Year\s*Of\s*Birth[^:]*:\s*\d+\s*\((\d+)\)/i);
+  if (ageMatch) row[COL.AGE] = ageMatch[1];
+
+  // Column G: Gender — "Gender: Male/Female" → output "M" or "F"
+  const genderRaw = extractAfterLabelStrict(text, 'Gender');
+  if (/female/i.test(genderRaw)) row[COL.GENDER] = 'F';
+  else if (/male/i.test(genderRaw)) row[COL.GENDER] = 'M';
+
+  // Column J: Physician
+  row[COL.PHYSICIAN] = extractAfterLabelStrict(text, 'Physician');
+
+  // Column K: Hospital — Title Case (e.g. "CHU BLIDA" → "Chu Blida")
+  row[COL.HOSPITAL] = toTitleCase(extractAfterLabelStrict(text, 'Hospital'));
+
+  // Column L: City — Title Case (e.g. "BLIDA" → "Blida")
+  row[COL.CITY] = toTitleCase(extractAfterLabelStrict(text, 'City'));
+
+  // Column M: Country — Title Case (e.g. "ALGERIA" → "Algeria")
+  row[COL.COUNTRY] = toTitleCase(extractAfterLabelStrict(text, 'Country'));
+
+  // Column H: Year of Birth — "Year Of Birth (Age): 1939 (86)" → extract 1939
+  const yearMatch = text.match(/Year\s*Of\s*Birth[^:]*:\s*(\d{4})/i);
+  if (yearMatch) row[COL.YEAR] = yearMatch[1];
+
+  // Remaining columns (I, N onwards) — to be added field by field as confirmed.
+  row[COL.STATUS] = 'NA';
+
+  // Column P: Received Date — "Received Date: 01-06-2026 City: Blida"
+  const rdMatch = text.match(/Received\s*Date\s*:\s*([^\n\r]+)/i);
+  if (rdMatch) {
+    let rdVal = rdMatch[1].trim();
+    rdVal = rdVal.replace(/\s+[A-Z][a-z][A-Za-z]*(?:\s+[A-Z][a-z][A-Za-z]*)*\s*:.*$/, '');
+    row[COL.RECEIVED_DATE] = rdVal.trim();
+  }
+
+  // Column S: Type of Valve — first line of Comments in Aortic Valve section
+  row[COL.TYPE_OF_VALVE] = extractAorticValveFirstCommentLine(text);
+
+  // Column U: AA Area — "Area: 540.6 mm²" (Area Derived Ø has extra words before colon, won't match)
+  const aaAreaMatch = text.match(/\bArea\s*:\s*([\d.]+)/);
+  if (aaAreaMatch) row[COL.AA_AREA] = aaAreaMatch[1];
+
+  // Column V: AA Area Derived Ø — "Area Derived Ø: 26.2 mm"
+  const aaAreaDerivedMatch = text.match(/Area\s+Derived\s*[^\n:]*:\s*([\d.]+)/i);
+  if (aaAreaDerivedMatch) row[COL.AA_AREA_DERIVED] = aaAreaDerivedMatch[1];
+
+  // Column W: AA Perimeter — "Perimeter: 85.0 mm" (not Perimeter Derived)
+  const aaPerimMatch = text.match(/\bPerimeter\s*:\s*([\d.]+)/i);
+  if (aaPerimMatch) row[COL.AA_PERIMETER] = aaPerimMatch[1];
+
+  // Column X: AA Perimeter Derived Ø — "Perimeter Derived Ø: 27.1 mm"
+  const aaPerimDerivedMatch = text.match(/Perimeter\s+Derived\s*[^\n:]*:\s*([\d.]+)/i);
+  if (aaPerimDerivedMatch) row[COL.AA_PERIMETER_DERIVED] = aaPerimDerivedMatch[1];
+
+  // Columns Y–AB: Aortic Annulus Min/Max/Average/Eccentricity
+  // Pattern: "Aortic Annulus Min Ø: 21.6 mm" then "Max Ø: 32.2 mm" then "Average Ø: 26.9 mm" then "Eccentricity: 0.33"
+  const aaMinMatch = text.match(/Aortic\s+Annulus\s+Min\s*[^\n:]*:\s*([\d.]+)/i);
+  if (aaMinMatch) row[COL.AA_MINIMUM] = aaMinMatch[1];
+
+  const aaMaxMatch = text.match(/Aortic\s+Annulus[\s\S]{0,200}?Max\s*[^\n:]*:\s*([\d.]+)/i);
+  if (aaMaxMatch) row[COL.AA_MAXIMUM] = aaMaxMatch[1];
+
+  const aaAvgMatch = text.match(/Aortic\s+Annulus[\s\S]{0,300}?Average\s*[^\n:]*:\s*([\d.]+)/i);
+  if (aaAvgMatch) row[COL.AA_AVERAGE] = aaAvgMatch[1];
+
+  const aaEccMatch = text.match(/Eccentricity\s*:\s*([\d.]+)/i);
+  if (aaEccMatch) row[COL.AA_ECCENTRICITY] = aaEccMatch[1];
+
+  // Columns AC–AE: Ascending Aorta Min/Max/Average
+  // Pattern: "Ascending Aorta Ø" then "Min: 29.1 mm" "Max: 31.0 mm" "Average: 30.0 mm"
+  const ascIdx = text.search(/Ascending\s+Aorta/i);
+  if (ascIdx !== -1) {
+    const ascEnd = text.substring(ascIdx).search(/Aortic\s+Annulus/i);
+    const ascBlock = ascEnd === -1 ? text.substring(ascIdx, ascIdx + 200) : text.substring(ascIdx, ascIdx + ascEnd);
+
+    const ascMinMatch = ascBlock.match(/Min\s*:\s*([\d.]+)/i);
+    if (ascMinMatch) row[COL.ASC_MINIMUM] = ascMinMatch[1];
+
+    const ascMaxMatch = ascBlock.match(/Max\s*:\s*([\d.]+)/i);
+    if (ascMaxMatch) row[COL.ASC_MAXIMUM] = ascMaxMatch[1];
+
+    const ascAvgMatch = ascBlock.match(/Average\s*:\s*([\d.]+)/i);
+    if (ascAvgMatch) row[COL.ASC_AVERAGE] = ascAvgMatch[1];
+  }
+
+  // Columns AI–AK: STJ (Sinotubular Junction) Min/Max/Average
+  // Measurements table interleaves columns on each line:
+  // "Ascending Aorta Ø Min: 29.1 mm Sinotubular Junction Ø Min: 25.5 mm"
+  // "Max: 31.0 mm Max: 28.0 mm" / "Average: 30.0 mm Average: 26.7 mm"
+  // STJ values are the 2nd Min/Max/Average occurrences after "Measurements:"
+  const measIdx = text.search(/Measurements\s*:/i);
+  const measText = measIdx !== -1 ? text.substring(measIdx) : text;
+  const stjMinAll = [...measText.matchAll(/Min\s*:\s*([\d.]+)/gi)];
+  const stjMaxAll = [...measText.matchAll(/Max\s*:\s*([\d.]+)/gi)];
+  const stjAvgAll = [...measText.matchAll(/Average\s*:\s*([\d.]+)/gi)];
+  if (stjMinAll[1]) row[COL.STJ_MINIMUM] = stjMinAll[1][1];
+  if (stjMaxAll[1]) row[COL.STJ_MAXIMUM] = stjMaxAll[1][1];
+  if (stjAvgAll[1]) row[COL.STJ_AVERAGE] = stjAvgAll[1][1];
+
+  // Columns AF–AH: LVOT Min/Max/Average (in Measurements table, right column under Sinotubular Junction)
+  const lvotIdx = text.search(/LVOT\s*Ø[\s\S]{0,50}?Min\s*:/i);
+  if (lvotIdx !== -1) {
+    const lvotEnd = text.substring(lvotIdx).search(/Aorto-Mitral/i);
+    const lvotBlock = lvotEnd === -1 ? text.substring(lvotIdx, lvotIdx + 200) : text.substring(lvotIdx, lvotIdx + lvotEnd);
+
+    const lvotMinMatch = lvotBlock.match(/Min\s*:\s*([\d.]+)/i);
+    if (lvotMinMatch) row[COL.LVOT_MINIMUM] = lvotMinMatch[1];
+
+    const lvotMaxMatch = lvotBlock.match(/Max\s*:\s*([\d.]+)/i);
+    if (lvotMaxMatch) row[COL.LVOT_MAXIMUM] = lvotMaxMatch[1];
+
+    const lvotAvgMatch = lvotBlock.match(/Average\s*:\s*([\d.]+)/i);
+    if (lvotAvgMatch) row[COL.LVOT_AVERAGE] = lvotAvgMatch[1];
+  }
+
+  // Column T: Phase — first segment after "report_" in filename e.g. "_30%_" or "_ECG_"
+  // Fallback to PDF Comments text "30% Phase"
+  const phaseFromFile = fileName.match(/report_([^_]+)_/i);
+  if (phaseFromFile) {
+    row[COL.PHASE] = phaseFromFile[1].trim();
+  } else {
+    const phaseMatch = text.match(/(\d+(?:\.\d+)?)\s*%\s*Phase/i);
+    if (phaseMatch) row[COL.PHASE] = phaseMatch[1] + '%';
+  }
+
+  // Column R: CT Scan Date — e.g. "CT scan Date : 10-05-2026" or "CT Scan date : 16-05-2026"
+  // Use permissive match: "CT" then up to 15 chars then "date" then separator then value
+  const ctMatch = text.match(/CT.{0,15}date\s*[-:]?\s*([^\n\r]+)/i);
+  if (ctMatch) row[COL.CT_SCAN_DATE] = ctMatch[1].trim().replace(/\.$/, '');
+
+  // Column Q: Creation Date — "Creation Date: 01-06-2026 Physician: ..."
+  const cdRaw = text.match(/Creation\s*Date\s*:\s*([^\n\r]+)/i);
+  if (cdRaw) {
+    let cdVal = cdRaw[1].trim();
+    cdVal = cdVal.replace(/\s+[A-Z][a-z][A-Za-z]*(?:\s+[A-Z][a-z][A-Za-z]*)*\s*:.*$/, '');
+    row[COL.CREATION_DATE] = cdVal.trim();
+  }
+
+  // Column N: Region — fixed pending
+  row[COL.REGION] = 'Pending';
+
+  // Column O: Continent — fixed pending
+  row[COL.CONTINENT] = 'Pending';
+
+  // Columns AP–AR: Sinus of Valsalva Diameters — Right (RCC), Left (LCC), Non (NCC)
+  const sovLeftMatch = text.match(/Sinus\s+Of\s+Valsalva\s+Diameters[\s\S]{0,50}?Left\s*:\s*([\d.]+)/i);
+  if (sovLeftMatch) row[COL.SOV_LEFT] = sovLeftMatch[1];
+
+  const sovRightMatch = text.match(/Sinus\s+Of\s+Valsalva\s+Diameters[\s\S]{0,80}?Right\s*:\s*([\d.]+)/i);
+  if (sovRightMatch) row[COL.SOV_RIGHT] = sovRightMatch[1];
+
+  const sovNonMatch = text.match(/Sinus\s+Of\s+Valsalva\s+Diameters[\s\S]{0,110}?Non\s*:\s*([\d.]+)/i);
+  if (sovNonMatch) row[COL.SOV_NON] = sovNonMatch[1];
+
+  // Column AO: SOV Height — "Sinus of Valsalva Height  10.9 mm"
+  const sovHeightMatch = text.match(/Sinus\s+of\s+Valsalva\s+Height\s+([\d.]+)/i);
+  if (sovHeightMatch) row[COL.SOV_HEIGHT] = sovHeightMatch[1];
+
+  // Column AN: LCA Height — "LCA Height: 12.4 mm"
+  const lcaHeightMatch = text.match(/LCA\s+Height\s*:\s*([\d.]+)/i);
+  if (lcaHeightMatch) row[COL.LCA_HEIGHT] = lcaHeightMatch[1];
+
+  // Column AM: RCA Height — "RCA Height: 17.5 mm"
+  const rcaHeightMatch = text.match(/RCA\s+Height\s*:\s*([\d.]+)/i);
+  if (rcaHeightMatch) row[COL.RCA_HEIGHT] = rcaHeightMatch[1];
+
+  // Column AL: Annulus to STJ Height — fixed pending
+  row[COL.ANNULUS_STJ_HEIGHT] = 'Pending';
+
+  // Columns BD–BF: Left Common Iliac (CIA) Min/Max/Average
+  // Two-column layout: "Right ... Common Iliac Ø Min: 7.0 mm ... Left ... Common Iliac Ø Min: 6.8 mm"
+  // interleaved per line, so Left values are the 2nd occurrences before "Common Iliac Calcification"
+  const ciaIdx = text.search(/Common\s+Iliac\s*Ø/i);
+  if (ciaIdx !== -1) {
+    const ciaEnd = text.substring(ciaIdx).search(/Common\s+Iliac\s+Calcification/i);
+    const ciaBlock = ciaEnd === -1 ? text.substring(ciaIdx, ciaIdx + 200) : text.substring(ciaIdx, ciaIdx + ciaEnd);
+
+    const lciaMinAll = [...ciaBlock.matchAll(/Min\s*:\s*([\d.]+)/gi)];
+    const lciaMaxAll = [...ciaBlock.matchAll(/Max\s*:\s*([\d.]+)/gi)];
+    const lciaAvgAll = [...ciaBlock.matchAll(/Average\s*:\s*([\d.]+)/gi)];
+    if (lciaMinAll[1]) row[COL.LCIA_MIN] = lciaMinAll[1][1];
+    if (lciaMaxAll[1]) row[COL.LCIA_MAX] = lciaMaxAll[1][1];
+    if (lciaAvgAll[1]) row[COL.LCIA_AVG] = lciaAvgAll[1][1];
+
+    // Columns BP–BR: Right Common Iliac (CIA) Min/Max/Average — 1st occurrence
+    if (lciaMinAll[0]) row[COL.RCIA_MIN] = lciaMinAll[0][1];
+    if (lciaMaxAll[0]) row[COL.RCIA_MAX] = lciaMaxAll[0][1];
+    if (lciaAvgAll[0]) row[COL.RCIA_AVG] = lciaAvgAll[0][1];
+  }
+
+  // Column BG: Left Common Iliac Calcification Grade — 2nd occurrence (Right then Left)
+  if (ciaIdx !== -1) {
+    const ciaCalcEnd = text.substring(ciaIdx).search(/External\s+Iliac\s*Ø/i);
+    const ciaCalcBlock = ciaCalcEnd === -1 ? text.substring(ciaIdx, ciaIdx + 300) : text.substring(ciaIdx, ciaIdx + ciaCalcEnd);
+    const ciaCalcAll = [...ciaCalcBlock.matchAll(/\b(None|Mild|Moderate|Severe)\b/gi)];
+    if (ciaCalcAll[1]) row[COL.LCIA_CALC] = ciaCalcAll[1][1];
+
+    // Column BS: Right Common Iliac Calcification Grade — 1st occurrence
+    if (ciaCalcAll[0]) row[COL.RCIA_CALC] = ciaCalcAll[0][1];
+  }
+
+  // Columns BH–BK: Left External Iliac (EIA) Min/Max/Average/Calcification Grade
+  const eiaIdx = text.search(/External\s+Iliac\s*Ø/i);
+  if (eiaIdx !== -1) {
+    const eiaEnd = text.substring(eiaIdx).search(/Femoral\s*Ø/i);
+    const eiaBlock = eiaEnd === -1 ? text.substring(eiaIdx, eiaIdx + 300) : text.substring(eiaIdx, eiaIdx + eiaEnd);
+
+    const leiaMinAll = [...eiaBlock.matchAll(/Min\s*:\s*([\d.]+)/gi)];
+    const leiaMaxAll = [...eiaBlock.matchAll(/Max\s*:\s*([\d.]+)/gi)];
+    const leiaAvgAll = [...eiaBlock.matchAll(/Average\s*:\s*([\d.]+)/gi)];
+    if (leiaMinAll[1]) row[COL.LEIA_MIN] = leiaMinAll[1][1];
+    if (leiaMaxAll[1]) row[COL.LEIA_MAX] = leiaMaxAll[1][1];
+    if (leiaAvgAll[1]) row[COL.LEIA_AVG] = leiaAvgAll[1][1];
+
+    const leiaCalcAll = [...eiaBlock.matchAll(/\b(None|Mild|Moderate|Severe)\b/gi)];
+    if (leiaCalcAll[1]) row[COL.LEIA_CALC] = leiaCalcAll[1][1];
+
+    // Columns BT–BW: Right External Iliac (EIA) Min/Max/Average/Calcification — 1st occurrence
+    if (leiaMinAll[0]) row[COL.REIA_MIN] = leiaMinAll[0][1];
+    if (leiaMaxAll[0]) row[COL.REIA_MAX] = leiaMaxAll[0][1];
+    if (leiaAvgAll[0]) row[COL.REIA_AVG] = leiaAvgAll[0][1];
+    if (leiaCalcAll[0]) row[COL.REIA_CALC] = leiaCalcAll[0][1];
+  }
+
+  // Columns BL–BO: Left Femoral (FA) Min/Max/Average/Calcification Grade
+  const faIdx = text.search(/Femoral\s*Ø/i);
+  if (faIdx !== -1) {
+    const faEnd = text.substring(faIdx).search(/Comments\s*:/i);
+    const faBlock = faEnd === -1 ? text.substring(faIdx, faIdx + 300) : text.substring(faIdx, faIdx + faEnd);
+
+    const lfaMinAll = [...faBlock.matchAll(/Min\s*:\s*([\d.]+)/gi)];
+    const lfaMaxAll = [...faBlock.matchAll(/Max\s*:\s*([\d.]+)/gi)];
+    const lfaAvgAll = [...faBlock.matchAll(/Average\s*:\s*([\d.]+)/gi)];
+    if (lfaMinAll[1]) row[COL.LFA_MIN] = lfaMinAll[1][1];
+    if (lfaMaxAll[1]) row[COL.LFA_MAX] = lfaMaxAll[1][1];
+    if (lfaAvgAll[1]) row[COL.LFA_AVG] = lfaAvgAll[1][1];
+
+    const lfaCalcAll = [...faBlock.matchAll(/\b(None|Mild|Moderate|Severe)\b/gi)];
+    if (lfaCalcAll[1]) row[COL.LFA_CALC] = lfaCalcAll[1][1];
+
+    // Columns BX–CA: Right Femoral (FA) Min/Max/Average/Calcification — 1st occurrence
+    if (lfaMinAll[0]) row[COL.RFA_MIN] = lfaMinAll[0][1];
+    if (lfaMaxAll[0]) row[COL.RFA_MAX] = lfaMaxAll[0][1];
+    if (lfaAvgAll[0]) row[COL.RFA_AVG] = lfaAvgAll[0][1];
+    if (lfaCalcAll[0]) row[COL.RFA_CALC] = lfaCalcAll[0][1];
+  }
+
+  // Column CB: Abdominal Aorta Calcification — "<Grade> calcification observed in/at Abdominal Aorta"
+  const abdAortaMatch = text.match(/\b(None|Mild|Moderate|Severe)\b\s*calcification\s+observed\s+(?:in|at)\s+(?:the\s+)?Abdominal\s+Aorta/i);
+  if (abdAortaMatch) row[COL.ABD_AORTA_CALC] = abdAortaMatch[1];
+
+  // Columns CG–CI: fixed pending
+  row[COL.MAIL_NOTES] = 'Pending';
+  row[COL.MERIL_REP] = 'Pending';
+  row[COL.RECEIVED_FROM] = 'Pending';
+
+  // Columns CC–CE: fixed pending
+  row[COL.AORTIC_COMMENTS] = 'Pending';
+  row[COL.FEMORAL_COMMENTS] = 'Pending';
+  row[COL.SUBCLAVIAN] = 'Pending';
+
+  // Columns AS–BC: fixed pending
+  row[COL.AO_LV_ANGLE] = 'Pending';
+  row[COL.ICD_4MM] = 'Pending';
+  row[COL.ICD_6MM] = 'Pending';
+  row[COL.ICD_8MM] = 'Pending';
+  row[COL.CALC_NC] = 'Pending';
+  row[COL.CALC_RC] = 'Pending';
+  row[COL.CALC_LC] = 'Pending';
+  row[COL.CALC_TOTAL] = 'Pending';
+  row[COL.CALC_GRADE] = 'Pending';
+  row[COL.CLOCK_RCC] = 'Pending';
+  row[COL.CLOCK_RCA] = 'Pending';
+
+  // Leave empty cells blank — do not fill with NA
+
+  return row;
+}
+
+// ─── Process all PDFs ─────────────────────────────────────────────────────────
+async function readPDFText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+
+    // This PDF renders each character as a separate item.
+    // We must use X-position gaps to decide whether to insert a space between items.
+    // Group by Y (rounded to 5px to merge characters on the same visual line).
+    const lineMap = new Map();
+    tc.items.forEach(item => {
+      if (!item.str) return;
+      const y = Math.round(item.transform[5] / 5) * 5;
+      if (!lineMap.has(y)) lineMap.set(y, []);
+      lineMap.get(y).push({
+        x: item.transform[4],
+        w: item.width || 0,
+        str: item.str
+      });
+    });
+
+    const sortedYs = Array.from(lineMap.keys()).sort((a, b) => b - a);
+    const pageLines = sortedYs.map(y => {
+      const items = lineMap.get(y).sort((a, b) => a.x - b.x);
+      let line = '';
+      for (let i = 0; i < items.length; i++) {
+        const cur = items[i];
+        if (i === 0) {
+          line += cur.str;
+        } else {
+          const prev = items[i - 1];
+          // Gap = distance between end of previous item and start of current
+          const gap = cur.x - (prev.x + prev.w);
+          // Estimate average char width from previous item
+          const charW = prev.w > 0 ? prev.w / (prev.str.length || 1) : 3;
+          // Insert space only when gap is larger than ~0.5 character widths
+          if (gap > charW * 0.5) {
+            line += ' ' + cur.str;
+          } else {
+            line += cur.str;
+          }
+        }
+      }
+      return line.trim();
+    }).filter(l => l.length > 0);
+
+    fullText += pageLines.join('\n') + '\n';
+  }
+  return fullText;
+}
+
+async function processAll() {
+  const validItems = selectedFiles.filter(x => x.valid);
+  if (!validItems.length) { showStatus('No valid PDF files to process.', 'error'); return; }
+  if (hasDuplicates()) {
+    showStatus('Duplicate row numbers detected. Remove one of the duplicates before processing.', 'error');
+    return;
+  }
+
+  processBtn.disabled = true;
+  downloadBtn.disabled = true;
+  processedRows = {};
+  workbookBlob = null;
+
+  progressWrap.classList.add('show');
+  setProgress(0, '');
+
+  let done = 0;
+  const warnings = [];
+  const debugTabsEl = document.getElementById('debugTabs');
+  const debugPanesEl = document.getElementById('debugPanes');
+  const debugPanel = document.getElementById('debugPanel');
+  debugTabsEl.innerHTML = '';
+  debugPanesEl.innerHTML = '';
+
+  for (const item of validItems) {
+    setProgress(Math.round((done / validItems.length) * 100),
+      `Reading ${item.file.name} …`);
+    try {
+      const text = await readPDFText(item.file);
+      // Show raw text for this PDF in its own debug tab
+      const tabId = `debugPane_${item.rowNum}`;
+      const tabBtn = document.createElement('button');
+      tabBtn.textContent = `Row ${item.rowNum}`;
+      tabBtn.title = item.file.name;
+      tabBtn.style.cssText = 'background:#0f1f33;border:1px solid #1e3a5f;border-radius:8px;padding:6px 12px;font-size:0.75rem;color:#7dd3fc;cursor:pointer;';
+      const pane = document.createElement('pre');
+      pane.id = tabId;
+      pane.textContent = text.substring(0, 10000);
+      pane.style.cssText = 'display:none;background:#050d1a;border:1px solid #1e3a5f;border-radius:10px;padding:16px;font-size:0.75rem;color:#7dd3fc;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto;';
+      tabBtn.addEventListener('click', () => {
+        debugPanesEl.querySelectorAll('pre').forEach(p => p.style.display = 'none');
+        debugTabsEl.querySelectorAll('button').forEach(b => b.style.background = '#0f1f33');
+        pane.style.display = 'block';
+        tabBtn.style.background = '#1e3a5f';
+      });
+      debugTabsEl.appendChild(tabBtn);
+      debugPanesEl.appendChild(pane);
+      if (debugPanesEl.children.length === 1) {
+        pane.style.display = 'block';
+        tabBtn.style.background = '#1e3a5f';
+      }
+      debugPanel.style.display = 'block';
+      if (!text.trim()) {
+        warnings.push(`"${item.file.name}": No text could be extracted from this PDF.`);
+        item.processed = false;
+      } else {
+        const rowArr = buildTrackerRow(text, item.file.name);
+        processedRows[item.rowNum] = rowArr;
+        item.processed = true;
+      }
+    } catch (err) {
+      warnings.push(`"${item.file.name}": Failed to read PDF — ${err.message}`);
+      item.processed = false;
+    }
+    done++;
+  }
+
+  setProgress(100, 'Building workbook…');
+  renderPreview();
+
+  if (Object.keys(processedRows).length === 0) {
+    showStatus('No rows were extracted. See warnings above.', 'error');
+  } else {
+    const warnMsg = warnings.length ? ` ${warnings.length} warning(s): ${warnings.join(' | ')}` : '';
+    showStatus(
+      `✓ Processed ${Object.keys(processedRows).length} PDF(s) successfully.${warnMsg}`,
+      warnings.length ? 'warning' : 'success'
+    );
+    downloadBtn.disabled = false;
+  }
+
+  processBtn.disabled = false;
+  progressWrap.classList.remove('show');
+  renderFileList(); // refresh status badges
+  updateCounters();
+}
+
+// ─── Preview ──────────────────────────────────────────────────────────────────
+function renderPreview() {
+  previewBody.innerHTML = '';
+  const rowNums = Object.keys(processedRows).map(Number).sort((a,b) => a-b);
+  if (!rowNums.length) { previewSection.classList.remove('show'); return; }
+
+  rowNums.forEach(rn => {
+    const row = processedRows[rn];
+    const tr = document.createElement('tr');
+    function cell(val, cls) {
+      const td = document.createElement('td');
+      if (!val && val !== 0) { td.className = 'blank-val'; td.textContent = '—'; }
+      else { td.textContent = val; if (cls) td.className = cls; }
+      return td;
+    }
+    tr.appendChild(cell(rn, 'row-num'));
+    // PDF name = last item that set this row (find file)
+    const srcFile = selectedFiles.find(x => x.rowNum === rn);
+    tr.appendChild(cell(srcFile ? srcFile.file.name : ''));
+    tr.appendChild(cell(row[COL.PATIENT_NAME]));
+    tr.appendChild(cell(row[COL.PATIENT_ID]));
+    tr.appendChild(cell(row[COL.AGE]));
+    tr.appendChild(cell(row[COL.GENDER]));
+    tr.appendChild(cell(row[COL.PHYSICIAN]));
+    tr.appendChild(cell(row[COL.HOSPITAL]));
+    tr.appendChild(cell(row[COL.CITY]));
+    tr.appendChild(cell(row[COL.COUNTRY]));
+    tr.appendChild(cell(row[COL.CREATION_DATE]));
+    tr.appendChild(cell(row[COL.CT_SCAN_DATE]));
+    tr.appendChild(cell(row[COL.TYPE_OF_VALVE]));
+    tr.appendChild(cell(row[COL.STATUS], 'na-val'));
+    // warnings col — blank for now
+    const warnTd = document.createElement('td');
+    warnTd.className = 'warn';
+    warnTd.textContent = '';
+    tr.appendChild(warnTd);
+    previewBody.appendChild(tr);
+  });
+
+  previewSection.classList.add('show');
+}
+
+// ─── Excel generation ─────────────────────────────────────────────────────────
+function doDownload() {
+  try {
+    const wb = XLSX.utils.book_new();
+    const wsData = [];
+
+    // Row 1 and row 2 headers
+    wsData.push(HEADER_ROW1.slice());
+    wsData.push(HEADER_ROW2.slice());
+
+    // Determine max row number to allocate enough rows
+    const rowNums = Object.keys(processedRows).map(Number);
+    const maxRow = rowNums.length ? Math.max(...rowNums) : 2;
+
+    // Fill rows 3 onwards up to maxRow (1-based Excel rows, but array is 0-based)
+    // wsData index 0 = header row 1, index 1 = header row 2
+    // Excel row 3 = wsData index 2
+    for (let excelRow = 3; excelRow <= maxRow; excelRow++) {
+      if (processedRows[excelRow]) {
+        wsData.push(processedRows[excelRow].slice());
+      } else {
+        wsData.push(new Array(NUM_COLS).fill(''));
+      }
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Apply merge ranges
+    ws['!merges'] = MERGE_RANGES.map(([r1,c1,r2,c2]) => ({
+      s: { r: r1, c: c1 }, e: { r: r2, c: c2 }
+    }));
+
+    // Set column widths (approximate)
+    ws['!cols'] = Array.from({ length: NUM_COLS }, (_, i) => {
+      if (i === COL.PATIENT_NAME || i === COL.PHYSICIAN || i === COL.HOSPITAL) return { wch: 22 };
+      if (i === COL.AORTIC_COMMENTS || i === COL.FEMORAL_COMMENTS || i === COL.SUBCLAVIAN) return { wch: 35 };
+      return { wch: 14 };
+    });
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Sample Tracker');
+
+    // Batch filename: "<batch#>. <minRow> - TO - <maxRow>.xlsx"
+    // Batch counter persists across sessions in localStorage; ":" is not
+    // allowed in Windows filenames, so "." is used after the batch number.
+    const minRow = rowNums.length ? Math.min(...rowNums) : 0;
+    const range = `${minRow} - TO - ${maxRow}`;
+    // Re-downloading the same row range keeps the same batch number
+    let batchNo = parseInt(localStorage.getItem('batchCounter'), 10) || 0;
+    if (localStorage.getItem('batchLastRange') !== range) batchNo += 1;
+    const fileName = `${batchNo}. ${range}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    localStorage.setItem('batchCounter', String(batchNo));
+    localStorage.setItem('batchLastRange', range);
+    showStatus(`✓ Excel file downloaded successfully as "${fileName}".`, 'success');
+  } catch (err) {
+    showStatus('Excel generation failed: ' + err.message, 'error');
+  }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function showStatus(msg, type) {
+  statusBar.textContent = msg;
+  statusBar.className = 'status-bar ' + type;
+}
+function hideStatus() {
+  statusBar.className = 'status-bar';
+  statusBar.textContent = '';
+}
+function setProgress(pct, label) {
+  progressBar.style.width = pct + '%';
+  progressLabel.textContent = label;
+}
+</script>
+</body>
+</html>
