@@ -1,5 +1,5 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/3mensio_pdf_to_excel.html" }
+    { "source": "/", "destination": "/3mensio_pdf_to_excel.html" }
   ]
 }
